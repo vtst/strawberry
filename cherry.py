@@ -471,6 +471,12 @@ def main():
                     dest='dev',
                     help='Enable development mode',
                     default=False)
+  parser.add_option('-o', '--output',
+                    action='store',
+                    type='string',
+                    dest='output',
+                    help='Set the output base name',
+                    metavar='NAME')
   parser.add_option('--clean',
                     action='store_true',
                     dest='clean',
@@ -489,6 +495,10 @@ def main():
   if options.dev: parameters[Param.DEV] = True
   if options.pretty: parameters[Param.PRETTY] = True
   if options.log_level: parameters[Param.LOG_LEVEL] = options.log_level
+  if options.output:
+    parameters[Param.OUTPUT] = options.output
+  elif len(args) == 1:
+    parameters[Param.OUTPUT] = os.path.splitext(os.path.basename(args[0]))[0]
   if not args and os.path.isfile('index.cherry'):
     args.append('index.cherry')
   zfiles = [FSFile(path) for path in args]
