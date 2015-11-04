@@ -1,11 +1,13 @@
 var swby = swby || {};
 swby.lang = {};
 
+var swby_global = this;
+
 swby.lang.namespace = function(namespace) {
   var fragments = namespace.split('.');
-  swby.lang.assert(fragments.length > 0 && fragments[0] == 'app');
-  var obj = app;
-  for (var i = 1; i < fragments.length; ++i) {
+  swby.lang.assert(fragments.length > 0);
+  var obj = swby_global;
+  for (var i = 0; i < fragments.length; ++i) {
     var nextObj = obj[fragments[i]];
     if (!nextObj) {
       nextObj = {};

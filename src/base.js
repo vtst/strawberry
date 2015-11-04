@@ -228,13 +228,6 @@ swby.base.Page.prototype.onload = swby.lang.abstractMethod;
     }} */
 swby.base.Config;
 
-swby.base.CONFIG = {
-  apis: [{name: 'nextdoor', version: 'v1', root: '/_ah/api'}],
-  client_id: '617097522979-rfcioi5aem50b803ieipkav8felpq6vk.apps.googleusercontent.com',
-  scopes: ['https://www.googleapis.com/auth/userinfo.email'],
-  get_token_from_server: true
-};
-
 // ****************************************************************************
 // class swby.base.Loader
 
@@ -265,7 +258,7 @@ swby.base.Loader = function(config, page_class) {
   // Start the show.
   swby.promise.all([
     swby.promise.onDomEvent(document, 'DOMContentLoaded').then(function(event) {
-      this.page_ = this.page_class_;
+      this.page_ = new this.page_class_;
     }, this.reportError_, this),
     this.loadGoogleApi_().then(function() {
       return new swby.promise.all([
@@ -393,25 +386,34 @@ swby.base.Loader.prototype.getOAuth2TokenFromServer_ = function() {
 };
 
 /**
-@param {boolean=} opt_prompt
+ @param {boolean} immediate
+ @param {Function} fulfill
+ @param {Function} reject
+ @private
+ */
+swby.base.Loader.prototype.authorizeLocallyAttempt_ = function(immediate, fulfill, reject) {
+  var zhis = this;
+  gapi.auth.authorize({client_id: this.config_.client_id, scope: this.config_.scopes.join(' '), immediate: immediate}, function(result) {
+    if (result.error) {
+      if (immediate) {
+        zhis.showAuthDialog_(function() {
+          zhis.authorizeLocallyAttempt_(false, fulfill, reject);
+        });
+      } else {
+        reject({message: 'Authorization failure (' + result.error + ')'});
+      }
+    } else {
+      fulfill();
+    }    
+  });  
+};
+
+/**
 @private
 */
-swby.base.Loader.prototype.authorizeLocally_ = function(opt_prompt) {
+swby.base.Loader.prototype.authorizeLocally_ = function() {
   return new swby.promise.Promise(function(fulfill, reject) {
-    var zhis = this;
-    gapi.auth.authorize({client_id: this.config_.client_id, scope: this.config_.scopes.join(' '), immediate: !opt_prompt}, function(result) {
-      if (result.error) {
-        if (opt_prompt) {
-          reject({message: 'Authorization failure (' + result.error + ')'});
-        } else {
-          zhis.showAuthDialog_(function() {
-            fulfill(null);
-          });
-        }
-      } else {
-        fulfill();
-      }    
-    });    
+    this.authorizeLocallyAttempt_(true, fulfill, reject);
   }, this);
 };
 
@@ -421,7 +423,7 @@ swby.base.Loader.prototype.authorizeLocally_ = function(opt_prompt) {
  */
 swby.base.Loader.prototype.showAuthDialog_ = function(callback) {
   var dialog = swby.util.renderHtmlAsElement(swby.base.Loader.AUTH_DIALOG_HTML_);
-  document.body.appendChild(dialog)
+  document.body.appendChild(dialog);
   $(dialog).modal('show');
   $(dialog).on('hidden.bs.modal', function(event) {
     document.body.removeChild(dialog);
@@ -458,6 +460,6 @@ swby.base.Loader.prototype.refreshToken_ = function() {
 /**
 @param {Function} cls
 */
-swby.base.init = function(cls) {
-  new swby.base.Loader(swby.base.CONFIG, cls);
+swby.base.init = function(config, cls) {
+  new swby.base.Loader(config, cls);
 };
