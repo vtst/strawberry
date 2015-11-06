@@ -56,30 +56,55 @@ def _escape_less(s):
   return s  # TODO
 
 
-_JS_RUNTIME = """
+_JS_RUNTIME_START = """
+(function(global) {
 var cherry = {};
 
-cherry.escape = function(path) {
+cherry.rewrite_path = function(path) {
+  if (!cherry.is_absolute(path))
+    path = cherry.BASE_URL + path;
+  // TODO: Escape path
   return path;
 };
 
 cherry.include_js = function(path) {
-  document.write(
-    '<script type="text/javascript" src="' + cherry.escape(path) +
+  global.document.write(
+    '<script type="text/javascript" src="' + cherry.rewrite_path(path) +
       '"></' + 'script>');
 };
 
 cherry.include_css = function(path) {
-  document.write(
-    '<link rel="stylesheet" type="text/css" href="' + cherry.escape(path) +
+  global.document.write(
+    '<link rel="stylesheet" type="text/css" href="' + cherry.rewrite_path(path) +
       '">');
 };
 
 cherry.include_less = function(path) {
-  document.write(
+  global.document.write(
     '<link rel="stylesheet/less" type="text/css" href="' + 
-      cherry.escape(path) + '">');
+      cherry.rewrite_path(path) + '">');
 };
+
+cherry.is_absolute = function(url) {
+  return url.startsWith('/') || url.indexOf('://') > 0;
+}
+
+cherry.set_base_url = function(name) {
+  var elements = global.document.getElementsByTagName('script');
+  for (var i = 0; i < elements.length; ++i) {
+    var element = elements[i];
+    if (element.src.endsWith('/' + name)) {
+      cherry.BASE_URL = element.src.substring(0, element.src.length - 13);
+      return;
+    }
+  }
+  global.console.error('Cannot find base URL for strawberry.');
+  cherry.BASE_URL = '';
+};
+"""
+
+_JS_RUNTIME_END = """
+})(this);
 """
 
 # *************************************************************************
@@ -289,13 +314,16 @@ class JavaScriptHandler(Handler):
     elif self._dev:
       self._log('Generating: %s' % out_path)
       with open(out_path, 'w') as out:
-        out.write(_JS_RUNTIME)
+        out.write(_JS_RUNTIME_START)
+        out.write('cherry.set_base_url("%s");\n' %
+                  _escape_js(os.path.basename(out_path)))
         for zfile in self._files:
           path = zfile.get_path()
           if path is None:
             out.write(zfile.read())
           else:
             out.write('cherry.include_js("%s");\n' % _escape_js(path))
+        out.write(_JS_RUNTIME_END)
     else:
       if self._files:
         self._log('Minifying JavaScript: %s' % out_path)
