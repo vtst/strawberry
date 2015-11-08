@@ -19,11 +19,10 @@ example.Page.prototype.init = function() {
   }, swby.base.apiErrorHandler("Cannot say Hi", true), this);
 };
 
-// TODO: Bug if no scope.
 example.CONFIG_ = {
     apis: [{name: 'example', version: 'v1', root: '/_ah/api'}],
     client_id: '128116520821-dullqdj9l0fd4ljhsjf849kraga0j8sd.apps.googleusercontent.com',
-    scopes: ['https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/plus.login'],
+    scopes: [],
     get_token_from_server: false
 };
 

@@ -346,7 +346,7 @@ swby.base.Loader.prototype.authorize_ = function() {
   } else if (this.config_.scopes && this.config_.scopes.length > 0) {
     return this.authorizeLocally_();
   } else {
-    return swby.promise.resolved(null);
+    return swby.promise.fulfilled(null);
   }    
 };
 
