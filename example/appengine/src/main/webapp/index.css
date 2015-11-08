@@ -1,0 +1,16 @@
+body.loading #body {
+	display: none;
+}
+
+body.loading #load {
+	display: block;
+}
+
+#load {
+	display: none;
+}
+
+body {
+	font-family: sans-serif;
+	padding: 20px;
+}
