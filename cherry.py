@@ -12,6 +12,7 @@ import os
 import os.path
 import shutil
 import subprocess
+import sys
 
 # TODO: Single CSS file?
 # TODO: Automatic GIT ignore
@@ -241,11 +242,11 @@ class LogLevel(object):
 
 class Handler(object):
 
-  def __init__(self, parameters):
+  def __init__(self, output, parameters):
     self._parameters = parameters
+    self._output = output
     self._clean = parameters.get(Param.CLEAN, False)
     self._dev = parameters.get(Param.DEV, False)
-    self._output = parameters.get(Param.OUTPUT, 'index')
     self._pretty = parameters.get(Param.PRETTY, False)
     self._log_level = parameters.get(Param.LOG_LEVEL, LogLevel.DEFAULT)
 
@@ -300,8 +301,8 @@ class JavaScriptHandler(Handler):
 
   file_types = ['js']
 
-  def __init__(self, parameters):
-    Handler.__init__(self, parameters)
+  def __init__(self, *args, **kwargs):
+    Handler.__init__(self, *args, **kwargs)
     self._files = []
 
   def handle(self, zfile, statck):
@@ -340,12 +341,12 @@ class SoyHandler(Handler):
 
   file_types = ['soy']
 
-  def __init__(self, parameters):
-    Handler.__init__(self, parameters)
+  def __init__(self, *args, **kwargs):
+    Handler.__init__(self, *args, **kwargs)
     self._has_soy = False
-    self._soy_dir = parameters.get('soy_dir', '/opt/soy')
+    self._soy_dir = self._parameters.get('soy_dir', '/opt/soy')
     self._soyutils_path = os.path.join(self._soy_dir, 'soyutils.js')
-    self._java = parameters.get('java', 'java')
+    self._java = self._parameters.get('java', 'java')
 
   def handle(self, zfile, stack):
     r = []
@@ -386,11 +387,11 @@ class CssHandler(Handler):
   file_types = ['css', 'less']
   _LESS_JS_RUNTIME = '/usr/share/javascript/less/less.min.js'
 
-  def __init__(self, parameters):
-    Handler.__init__(self, parameters)
+  def __init__(self, *args, **kwargs):
+    Handler.__init__(self, *args, **kwargs)
     self._files = []
     self._has_less = False
-    self._less_js = parameters.get('less.js', self._LESS_JS_RUNTIME)
+    self._less_js = self._parameters.get('less.js', self._LESS_JS_RUNTIME)
 
   def handle(self, zfile, stack):
     if zfile.get_type() == 'less' and not self._has_less:
@@ -431,8 +432,8 @@ class CherryHandler(Handler):
 
   file_types = ['cherry']
 
-  def __init__(self, parameters):
-    Handler.__init__(self, parameters)
+  def __init__(self, *args, **kwargs):
+    Handler.__init__(self, *args, **kwargs)
 
   def handle(self, zfile, stack):
     base = os.path.dirname(zfile.get_path())
@@ -455,19 +456,19 @@ register_handler(CherryHandler)
 
 class Cherry(object):
 
-  def __init__(self, parameters):
-    self._build_handlers(parameters)
+  def __init__(self, output, parameters):
+    self._build_handlers(output, parameters)
   
-  def _build_handlers(self, parameters):
-    self._handlers = [cls(parameters) for cls in _HANDLER_CLASSES]
+  def _build_handlers(self, output, parameters):
+    self._handlers = [cls(output, parameters) for cls in _HANDLER_CLASSES]
     self._handlers_dict = collections.defaultdict(list)
     for handler in self._handlers:
       for file_type in handler.file_types:
         self._handlers_dict[file_type].append(handler)
 
-  def handle(self, zfiles):
+  def handle(self, cherry_file):
     # Process files
-    stack = list(reversed(zfiles))
+    stack = [cherry_file]
     while stack:
       zfile = stack.pop()
       for handlers in self._handlers_dict[zfile.get_type()]:
@@ -479,6 +480,12 @@ class Cherry(object):
 
 # *************************************************************************
 # Main
+
+
+def _is_cherry_file(path):
+  _, ext = os.path.splitext(path)
+  return ext == '.cherry'
+
 
 def main():
   parser = optparse.OptionParser(description=_DESCRIPTION)
@@ -523,17 +530,23 @@ def main():
   if options.dev: parameters[Param.DEV] = True
   if options.pretty: parameters[Param.PRETTY] = True
   if options.log_level: parameters[Param.LOG_LEVEL] = options.log_level
-  if options.output:
-    parameters[Param.OUTPUT] = options.output
-  elif len(args) == 1:
-    parameters[Param.OUTPUT] = os.path.splitext(os.path.basename(args[0]))[0]
-  if not args and os.path.isfile('index.cherry'):
-    args.append('index.cherry')
-  zfiles = [FSFile(path) for path in args]
-  cherry = Cherry(parameters)
+  if not args:
+    args = ['.']
+  if options.output and len(args) > 1:
+    print >> sys.stderr, '--output cannot be used with several inputs'
+    exit(1)
   try:
-    cherry.handle(zfiles)
+    for arg in args:
+      if os.path.isdir(arg):
+        paths = [path for path in os.listdir(arg) if _is_cherry_file(path)]
+      else:
+        paths = [arg]
+      for path in paths:
+        output, _ = os.path.splitext(path)
+        cherry = Cherry(output, parameters)
+        cherry.handle(FSFile(path))
   except RunError as e:
-    print e
+    print >> sys.stderr, e
+    exit(1)
 
 main()
