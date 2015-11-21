@@ -251,12 +251,18 @@ swby.base.Page.prototype.init = function() {
 /**
  */
 swby.base.Page.prototype.loaded = function() {
-  document.body.classList.remove('sbwy-loading');
+  document.body.classList.remove('swby-loading');
 };
 
 /**
 */
 swby.base.Page.prototype.onload = swby.lang.abstractMethod;
+
+/**
+@private {boolean}
+*/
+swby.base.Page.prototype.swbyIsPage_ = true;
+
 
 // ****************************************************************************
 // Config
@@ -286,7 +292,7 @@ swby.base.Config;
 
 /**
  @param {*} config
- @param {Function} page_class
+ @param {Function|function()} page_class
  @param {swby.base.DialogFactory} opt_dialogFactory
  @constructor
  */
@@ -294,7 +300,7 @@ swby.base.Loader = function(config, page_class, opt_dialogFactory) {
   swby.base.EventHandler.call(this);
   /** @private {swby.base.Config} */
   this.config_ = config;
-  /** @private {Function} */
+  /** @private {Function|function()} */
   this.page_class_ = page_class;
   /** @private {swby.base.Page} */
   this.page_ = null;
@@ -304,7 +310,11 @@ swby.base.Loader = function(config, page_class, opt_dialogFactory) {
   // Start the show.
   swby.promise.all([
     swby.promise.onDomEvent(document, 'DOMContentLoaded').then(function(event) {
-      this.page_ = new this.page_class_;
+      if (this.page_class_.prototype.swbyIsPage_) {
+        this.page_ = new this.page_class_;
+      } else {
+        this.page_ = new swby.base.Page(this.page_class_);
+      }
     }, this.reportError_, this),
     this.loadGoogleApi_().then(function() {
       return new swby.promise.all([
@@ -488,7 +498,7 @@ swby.base.Loader.prototype.refreshToken_ = function() {
 };
 
 /**
-@param {Function} cls
+@param {Function|function()} cls
 */
 swby.base.init = function(config, cls) {
   new swby.base.Loader(config, cls);
