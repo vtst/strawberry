@@ -6,8 +6,8 @@
 # (c) Vincent Simonet, 2015.  All rights reserved.
 # Version: 2015-11-04
 
+import argparse
 import collections
-import optparse
 import os
 import os.path
 import shutil
@@ -488,55 +488,58 @@ def _is_cherry_file(path):
 
 
 def main():
-  parser = optparse.OptionParser(description=_DESCRIPTION)
-  parser.add_option('-s', '--set',
-                    action='append',
-                    type='string',
-                    dest='parameters_list',
-                    help='Set a parameter',
-                    metavar='NAME=VALUE')
-  parser.add_option('-v', '--verbose',
-                    action='store',
-                    type='int',
-                    dest='log_level',
-                    help='Log level (0=quiet, 1=default, 2=verbose)',
-                    metavar='INT')
-  parser.add_option('-d', '--dev',
-                    action='store_true',
-                    dest='dev',
-                    help='Enable development mode',
-                    default=False)
-  parser.add_option('-o', '--output',
-                    action='store',
-                    type='string',
-                    dest='output',
-                    help='Set the output base name',
-                    metavar='NAME')
-  parser.add_option('--clean',
-                    action='store_true',
-                    dest='clean',
-                    help='Delete generated files instead of creating them',
-                    default=False)
-  parser.add_option('-p', '--pretty',
-                    action='store_true',
-                    dest='pretty',
-                    help='Pretty-print output',
-                    default=False)
-  options, args = parser.parse_args()
+  parser = argparse.ArgumentParser(description=_DESCRIPTION)
+  parser.add_argument('file',
+                      type=str,
+                      nargs='*')
+  parser.add_argument('-s', '--set',
+                      action='append',
+                      type=str,
+                      dest='parameters_list',
+                      help='Set a parameter',
+                      metavar='NAME=VALUE')
+  parser.add_argument('-v', '--verbose',
+                      action='store',
+                      type=int,
+                      dest='log_level',
+                      help='Log level (0=quiet, 1=default, 2=verbose)',
+                      metavar='INT')
+  parser.add_argument('-d', '--dev',
+                      action='store_true',
+                      dest='dev',
+                      help='Enable development mode',
+                      default=False)
+  parser.add_argument('-o', '--output',
+                      action='store',
+                      type=str,
+                      dest='output',
+                      help='Set the output base name',
+                      metavar='NAME')
+  parser.add_argument('--clean',
+                      action='store_true',
+                      dest='clean',
+                      help='Delete generated files instead of creating them',
+                      default=False)
+  parser.add_argument('-p', '--pretty',
+                      action='store_true',
+                      dest='pretty',
+                      help='Pretty-print output',
+                      default=False)
+  args = parser.parse_args()
   parameters = {name: value for name, value in 
                 (entry.split('=', 1) for entry in
-                 (options.parameters_list or []))}
-  if options.clean: parameters[Param.CLEAN] = True
-  if options.dev: parameters[Param.DEV] = True
-  if options.pretty: parameters[Param.PRETTY] = True
-  if options.log_level: parameters[Param.LOG_LEVEL] = options.log_level
-  if not args:
-    args = ['.']
-  if options.output and len(args) > 1:
+                 (args.parameters_list or []))}
+  if args.clean: parameters[Param.CLEAN] = True
+  if args.dev: parameters[Param.DEV] = True
+  if args.pretty: parameters[Param.PRETTY] = True
+  if args.log_level: parameters[Param.LOG_LEVEL] = args.log_level
+  if not args.file:
+    args.file = ['.']
+  if args.output and len(args) > 1:
     print >> sys.stderr, '--output cannot be used with several inputs'
     exit(1)
   try:
-    for arg in args:
+    for arg in args.file:
       if os.path.isdir(arg):
         paths = [path for path in os.listdir(arg) if _is_cherry_file(path)]
       else:
