@@ -1,8 +1,8 @@
-body.loading #body {
+body.sbwy-loading #body {
 	display: none;
 }
 
-body.loading #load {
+body.sbwy-loading #load {
 	display: block;
 }
 

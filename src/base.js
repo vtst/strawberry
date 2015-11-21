@@ -230,13 +230,14 @@ swby.base.showErrorDialog_ = function(factory, message, details, opt_fatal) {
 // Class swby.base.Page
 
 /**
+@param {function()=} opt_initCallback
 @constructor
 @extends {swby.base.EventHandler}
  */
-swby.base.Page = function() {
+swby.base.Page = function(opt_initCallback) {
   swby.base.EventHandler.call(this);
-  /** @public {Object.<string, string>} */
-  this.queryParameters = this.parseQueryString_(document.location.search);
+  /** @private {function()} */
+  this.initCallback_ = opt_initCallback;
 };
 swby.lang.inherits(swby.base.Page, swby.base.EventHandler);
 
@@ -244,26 +245,13 @@ swby.lang.inherits(swby.base.Page, swby.base.EventHandler);
  */
 swby.base.Page.prototype.init = function() {
   this.loaded();
+  if (this.initCallback_) this.initCallback_();
 };
 
 /**
  */
 swby.base.Page.prototype.loaded = function() {
-  document.body.classList.remove('loading');
-};
-
-/**
-@param {string} query
-@return {Object.<string, string>}
-@private
-*/
-swby.base.Page.prototype.parseQueryString_ = function(query) {
-  var result = {};
-  decodeURIComponent(query).substr(1).split('&').forEach(function(s) {
-    var arr = s.split('=', 2);
-    result[arr[0]] = arr[1] || 'true';
-  });
-  return result;
+  document.body.classList.remove('sbwy-loading');
 };
 
 /**
