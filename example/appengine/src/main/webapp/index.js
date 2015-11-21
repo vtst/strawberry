@@ -22,7 +22,7 @@ example.Page.prototype.init = function() {
 example.CONFIG_ = {
     apis: [{name: 'example', version: 'v1', root: '/_ah/api'}],
     client_id: '128116520821-dullqdj9l0fd4ljhsjf849kraga0j8sd.apps.googleusercontent.com',
-    scopes: [],
+    scopes: ['https://www.googleapis.com/auth/userinfo.email'],
     get_token_from_server: false
 };
 
