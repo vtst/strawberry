@@ -16,7 +16,6 @@ import sys
 
 # TODO: Single CSS file?
 # TODO: Automatic GIT ignore
-# TODO: Default output name based on input file name
 
 _DESCRIPTION="""Compile JavaScript and CSS files for a web application.
 
