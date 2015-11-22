@@ -202,10 +202,18 @@ class FSFile(File):
 class UrlFile(File):
   """A source file stored remotely."""
 
-  def __init__(self, path):
+  def __init__(self, path, base, output, cache):
     File.__init__(self)
-    self._path = path
-    self._contents = None
+    if cache:
+      self._contents = self._read(path)
+      self._path = os.path.join(self._get_cache_path(base, output),
+                                path.replace(':', '_').replace('/', '_'))
+      if not os.path.exists(self._path):
+        with open(self._path, 'w') as f:
+          f.write(self._contents)
+    else:
+      self._path = path
+      self._contents = None
 
   def get_type(self):
     _, ext = os.path.splitext(self._path)
@@ -214,9 +222,18 @@ class UrlFile(File):
   def get_path(self):
     return self._path
 
+  def _get_cache_path(self, base, output):
+    path = os.path.join(base, '.' + output + '.cherry_cache')
+    if not os.path.exists(path):
+      os.makedirs(path)
+    return path
+
+  def _read(self, path):
+    return urllib2.urlopen(path).read()
+
   def read(self):
     if self._contents is None:
-      self._contents = urllib2.urlopen(self._path).read()
+      self._contents = self._read(self._path)
     return self._contents
 
  
@@ -257,6 +274,7 @@ def register_handler(handler_class):
 class Param(object):
   CLEAN = 'clean'
   DEV = 'dev'
+  CACHE = 'cache'
   OUTPUT = 'output'
   PRETTY = 'pretty'
   LOG_LEVEL = 'log_level'
@@ -273,10 +291,10 @@ class Handler(object):
   def __init__(self, output, parameters):
     self._parameters = parameters
     self._output = output
-    self._clean = parameters.get(Param.CLEAN, False)
-    self._dev = parameters.get(Param.DEV, False)
-    self._pretty = parameters.get(Param.PRETTY, False)
-    self._log_level = parameters.get(Param.LOG_LEVEL, LogLevel.DEFAULT)
+    self._clean = self._parameters.get(Param.CLEAN, False)
+    self._dev = self._parameters.get(Param.DEV, False)
+    self._pretty = self._parameters.get(Param.PRETTY, False)
+    self._log_level = self._parameters.get(Param.LOG_LEVEL, LogLevel.DEFAULT)
 
   def handle(self, zfile, stack):
     raise NotImplementedError
@@ -462,6 +480,7 @@ class CherryHandler(Handler):
 
   def __init__(self, *args, **kwargs):
     Handler.__init__(self, *args, **kwargs)
+    self._cache = self._parameters.get(Param.CACHE, False)
 
   def handle(self, zfile, stack):
     base = os.path.dirname(zfile.get_path())
@@ -469,7 +488,7 @@ class CherryHandler(Handler):
     for line in reversed(zfile.read().splitlines()):
       if line and not line.startswith('#'):
         if _is_url(line):
-          stack.append(UrlFile(line))
+          stack.append(UrlFile(line, base, self._output, self._cache))
         else:
           if not os.path.isabs(line):
             line = os.path.join(base, line)
@@ -518,6 +537,11 @@ def _is_cherry_file(path):
   return ext == '.cherry'
 
 
+def _fatal_error(message):
+  print >> sys.stderr, message
+  exit(1)
+
+
 def main():
   parser = argparse.ArgumentParser(description=_DESCRIPTION)
   parser.add_argument('file',
@@ -539,6 +563,11 @@ def main():
                       action='store_true',
                       dest='dev',
                       help='Enable development mode',
+                      default=False)
+  parser.add_argument('--cache',
+                      action='store_true',
+                      dest='cache',
+                      help='Cache a local copy of remote files in dev mode',
                       default=False)
   parser.add_argument('-o', '--output',
                       action='store',
@@ -562,13 +591,16 @@ def main():
                  (args.parameters_list or []))}
   if args.clean: parameters[Param.CLEAN] = True
   if args.dev: parameters[Param.DEV] = True
+  if args.cache: 
+    if not args.dev:
+      _fatal_error('--cache cannot be used without --dev')
+    parameters[Param.CACHE] = True
   if args.pretty: parameters[Param.PRETTY] = True
   if args.log_level: parameters[Param.LOG_LEVEL] = args.log_level
   if not args.file:
     args.file = ['.']
   if args.output and len(args) > 1:
-    print >> sys.stderr, '--output cannot be used with several inputs'
-    exit(1)
+    _fatal_error('--output cannot be used with several inputs')
   try:
     for arg in args.file:
       if os.path.isdir(arg):
@@ -580,7 +612,7 @@ def main():
         cherry = Cherry(output, parameters)
         cherry.handle(FSFile(path))
   except RunError as e:
-    print >> sys.stderr, e
-    exit(1)
+    _fatal_error(e)
+
 
 main()
