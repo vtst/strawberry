@@ -13,6 +13,7 @@ import os.path
 import shutil
 import subprocess
 import sys
+import urllib2
 
 # TODO: Single CSS file?
 # TODO: Automatic GIT ignore
@@ -35,6 +36,10 @@ def _get_relative_sub_path(path, start):
     return None
   else:
     return relpath
+
+
+def _is_url(path):
+  return '://' in path
 
 
 # *************************************************************************
@@ -157,6 +162,7 @@ def run(command, arguments=[], inputs=[]):
 # Files
 
 class File(object):
+  """Interface for source files."""
 
   def __init__(self):
     pass
@@ -172,6 +178,7 @@ class File(object):
 
 
 class FSFile(File):
+  """A source file stored on the file system."""
 
   def __init__(self, path):
     File.__init__(self)
@@ -191,8 +198,30 @@ class FSFile(File):
         self._contents = f.read()
     return self._contents
 
+
+class UrlFile(File):
+  """A source file stored remotely."""
+
+  def __init__(self, path):
+    File.__init__(self)
+    self._path = path
+    self._contents = None
+
+  def get_type(self):
+    _, ext = os.path.splitext(self._path)
+    return ext[1:]
+
+  def get_path(self):
+    return self._path
+
+  def read(self):
+    if self._contents is None:
+      self._contents = urllib2.urlopen(self._path).read()
+    return self._contents
+
  
 class MFile(File):
+  """A source file stored in memory."""
 
   def __init__(self, t, contents):
     File.__init__(self)
@@ -439,9 +468,12 @@ class CherryHandler(Handler):
     result = []
     for line in reversed(zfile.read().splitlines()):
       if line and not line.startswith('#'):
-        if not os.path.isabs(line):
-          line = os.path.join(base, line)
-        stack.append(FSFile(line))
+        if _is_url(line):
+          stack.append(UrlFile(line))
+        else:
+          if not os.path.isabs(line):
+            line = os.path.join(base, line)
+          stack.append(FSFile(line))
 
   def finalize(self):
     pass
