@@ -17,6 +17,7 @@ import urllib2
 
 # TODO: Single CSS file?
 # TODO: Automatic GIT ignore
+# TODO: CSS minification
 
 _DESCRIPTION="""Compile JavaScript and CSS files for a web application.
 
@@ -99,7 +100,8 @@ cherry.set_base_url = function(name) {
   for (var i = 0; i < elements.length; ++i) {
     var element = elements[i];
     if (element.src.endsWith('/' + name)) {
-      cherry.BASE_URL = element.src.substring(0, element.src.length - 13);
+      cherry.BASE_URL = 
+        element.src.substring(0, element.src.length - name.length);
       return;
     }
   }
@@ -463,10 +465,6 @@ class CssHandler(Handler):
                   for zfile in self._files]
         self._log('Compiling CSS stylesheet: %s' % out_path)
         options = ['-', out_path]
-        if self._pretty:
-          options.extend(['-O0'])
-        else:
-          options.extend(['--compress', '-O2'])
         self._run(self._parameters.get('lessc', 'lessc'),
                   options, inputs)
 
