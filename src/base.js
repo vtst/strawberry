@@ -357,11 +357,22 @@ swby.base.Loader.prototype.reportError_ = function(reason) {
 };
 
 /**
+ @return {boolean}
+ @private
+ */
+swby.base.Loader.prototype.needGoogleApi_ = function() {
+  return (
+      (this.config_.apis && this.config_.apis.length > 0) ||
+      (this.config_.api_key || this.config_.get_token_from_server || 
+          (this.config_.scopes && this.config_.scopes.length > 0)));
+};
+
+/**
  @return {swby.promise.Promise}
  @private
  */
 swby.base.Loader.prototype.loadGoogleApi_ = function() {
-  if (this.config_.apis && this.config_.apis.length > 0) {
+  if (this.needGoogleApi_()) {
     return new swby.promise.Promise(function(fulfill, reject) {
       var gapi_callback = this.gapi_callback_;
       // Setup callback.
