@@ -333,7 +333,7 @@ swby.lang.inherits(swby.base.Loader, swby.base.EventHandler);
 swby.base.Loader.prototype.gapi_callback_ = 'cranberry_gapi_loaded';
 
 /** @private {string} */
-swby.base.Loader.prototype.gapi_url_ = 'https://apis.google.com/js/client.js?onload=';
+swby.base.Loader.prototype.gapi_url_ = 'https://apis.google.com/js/client.js';
 
 /** @private {number} */
 swby.base.Loader.prototype.xhr_timeout_ms_ = 5000;
@@ -361,16 +361,20 @@ swby.base.Loader.prototype.reportError_ = function(reason) {
  @private
  */
 swby.base.Loader.prototype.loadGoogleApi_ = function() {
-  return new swby.promise.Promise(function(fulfill, reject) {
-    var gapi_callback = this.gapi_callback_;
-    // Setup callback.
-    window[gapi_callback] = function() {
-      delete window[gapi_callback];
-      fulfill();
-    }; 
-    // Write SRC element to load the script.
-    document.write('<script type="application/javascript" src="' + this.gapi_url_ + gapi_callback + '"></script>');    
-  }, this);
+  if (this.config_.apis && this.config_.apis.length > 0) {
+    return new swby.promise.Promise(function(fulfill, reject) {
+      var gapi_callback = this.gapi_callback_;
+      // Setup callback.
+      window[gapi_callback] = function() {
+        delete window[gapi_callback];
+        fulfill();
+      }; 
+      // Write SRC element to load the script.
+      document.write('<script type="application/javascript" src="' + this.gapi_url_ + '?onload=' + gapi_callback + '"></script>');    
+    }, this);
+  } else {
+    return swby.promise.fulfilled(null);
+  }
 };
 
 /**
