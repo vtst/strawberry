@@ -18,6 +18,14 @@ import urllib2
 # TODO: Single CSS file?
 # TODO: Automatic GIT ignore
 # TODO: CSS minification
+# TODO: Cache management
+#   - Download or not files in cache
+#   - Force clean
+#   - Approaches:
+#     * Have clean delete cache
+#     * Download files if possible
+#     * Flag to decide whether to download files
+#     * Flag to decide whether to clean cache
 
 _DESCRIPTION="""Compile JavaScript and CSS files for a web application.
 
