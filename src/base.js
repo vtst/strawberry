@@ -330,7 +330,7 @@ swby.base.Loader = function(config, page_class, opt_dialogFactory) {
 swby.lang.inherits(swby.base.Loader, swby.base.EventHandler);
 
 /** @private {string} */
-swby.base.Loader.prototype.gapi_callback_ = 'cranberry_gapi_loaded';
+swby.base.Loader.prototype.gapi_callback_ = 'gapi_onload';
 
 /** @private {string} */
 swby.base.Loader.prototype.gapi_url_ = 'https://apis.google.com/js/client.js';
@@ -368,21 +368,33 @@ swby.base.Loader.prototype.needGoogleApi_ = function() {
 };
 
 /**
+ @param {string}
+ @param {function()=} opt_fn
+ @param {Object=} opt_context
+ @return {swby.promise.Promise}
+ */
+swby.base.Loader.prototype.googleApiCallbackPromise_ = function(callbackName, opt_fn, opt_context) {
+  return new swby.promise.Promise(function(fulfill, reject) {
+    window[callbackName] = function() {
+      delete window[callbackName];
+      fulfill();
+    };
+    if (opt_fn) opt_fn.call(opt_context);
+  }, this);  
+};
+
+/**
  @return {swby.promise.Promise}
  @private
  */
 swby.base.Loader.prototype.loadGoogleApi_ = function() {
-  if (this.needGoogleApi_()) {
-    return new swby.promise.Promise(function(fulfill, reject) {
-      var gapi_callback = this.gapi_callback_;
-      // Setup callback.
-      window[gapi_callback] = function() {
-        delete window[gapi_callback];
-        fulfill();
-      }; 
-      // Write SRC element to load the script.
-      document.write('<script type="application/javascript" src="' + this.gapi_url_ + '?onload=' + gapi_callback + '"></script>');    
+  if (!window.gapi && this.needGoogleApi_()) {
+    return this.googleApiCallbackPromise_(this.gapi_callback_, function() {
+      var url = this.gapi_url_ + '?onload=' + this.gapi_callback_;
+      document.write('<script type="application/javascript" src="' + url + '"></script>');          
     }, this);
+  } else if (!window.gapi.auth) {
+    return this.googleApiCallbackPromise_(this.gapi_callback_);
   } else {
     return swby.promise.fulfilled(null);
   }
