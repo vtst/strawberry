@@ -212,9 +212,9 @@ class FSFile(File):
 class UrlFile(File):
   """A source file stored remotely."""
 
-  def __init__(self, path, base, output, cache):
+  def __init__(self, path, base, output, parameters):
     File.__init__(self)
-    if cache:
+    if parameters[Param.CACHE]:
       self._contents = self._read(path)
       self._path = os.path.join(self._get_cache_path(base, output),
                                 path.replace(':', '_').replace('/', '_'))
@@ -494,7 +494,7 @@ class CherryHandler(Handler):
     for line in reversed(zfile.read().splitlines()):
       if line and not line.startswith('#'):
         if _is_url(line):
-          stack.append(UrlFile(line, base, self._output, self._cache))
+          stack.append(UrlFile(line, base, self._output, self._parameters))
         else:
           if not os.path.isabs(line):
             line = os.path.join(base, line)
