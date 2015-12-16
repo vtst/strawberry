@@ -51,6 +51,12 @@ def _is_url(path):
   return '://' in path
 
 
+def _remove_if_exists(self, path):
+  if os.path.isfile(path):
+    self._log(LogLevel.VERBOSE, 'Removing file: %s' % path)
+    os.remove(path)
+
+
 # *************************************************************************
 # Encoding functions
 
@@ -186,6 +192,9 @@ class File(object):
   def read(self):
     raise NotImplementedError
 
+  def cache_clean(self):
+    pass
+
 
 class FSFile(File):
   """A source file stored on the file system."""
@@ -246,6 +255,9 @@ class UrlFile(File):
       self._contents = self._read(self._path)
     return self._contents
 
+  def cache_clean(self):
+    _remove_if_exists(self._path)
+
  
 class MFile(File):
   """A source file stored in memory."""
@@ -285,9 +297,17 @@ class Param(object):
   CLEAN = 'clean'
   DEV = 'dev'
   CACHE = 'cache'
+  CACHE_CLEAN = 'cache_clean'
+  CACHE_DOWNLOAD = 'cache_download'
   OUTPUT = 'output'
   PRETTY = 'pretty'
   LOG_LEVEL = 'log_level'
+
+
+class CacheDownload(object):
+  FORCE = 'force'
+  LOCAL = 'local'
+  AUTO = 'auto'
 
 
 class LogLevel(object):
@@ -331,7 +351,7 @@ class Handler(object):
   def _clean_sub_path(self, path):
     copy, sub_path = self._get_rel_path_internal(path, False)
     if copy:
-      self._remove_if_exists(sub_path)
+      _remove_if_exists(sub_path)
 
   def _log(self, arg1, arg2=None):
     if arg2 is None:
@@ -346,11 +366,6 @@ class Handler(object):
     self._log(LogLevel.VERBOSE,
               'Running command: %s %s' % (command, ' '.join(arguments)))
     run(command, arguments, inputs)
-
-  def _remove_if_exists(self, path):
-    if os.path.isfile(path):
-      self._log(LogLevel.VERBOSE, 'Removing file: %s' % path)
-      os.remove(path)
 
 
 class JavaScriptHandler(Handler):
@@ -367,7 +382,7 @@ class JavaScriptHandler(Handler):
   def finalize(self):
     out_path = self._output + '.js'
     if self._clean:
-      self._remove_if_exists(out_path)
+      _remove_if_exists(out_path)
     elif self._dev:
       self._log('Generating: %s' % out_path)
       with open(out_path, 'w') as out:
@@ -418,7 +433,7 @@ class SoyHandler(Handler):
   def _compile(self, zfile):
     outpath = zfile.get_path() + '.js'
     if self._clean:
-      self._remove_if_exists(outpath)
+      _remove_if_exists(outpath)
       self._clean_sub_path(self._soyutils_path)
     else:
       self._log('Compiling Closure Templates: %s' % zfile.get_path())
@@ -462,11 +477,11 @@ class CssHandler(Handler):
   def finalize(self):
     out_path = self._output + '.css'
     if self._clean:
-      self._remove_if_exists(out_path)
+      _remove_if_exists(out_path)
       if self._has_less:
         self._clean_sub_path(self._less_js)
     elif self._dev:
-      self._remove_if_exists(out_path)
+      _remove_if_exists(out_path)
     else:
       if self._files:
         inputs = ['@import "%s";' % zfile.get_path()
@@ -514,6 +529,8 @@ class Cherry(object):
 
   def __init__(self, output, parameters):
     self._build_handlers(output, parameters)
+    self._cache_clean = (self._parameters[Param.CACHE] and
+                         self._parameters[Param.CACHE_CLEAN])
   
   def _build_handlers(self, output, parameters):
     self._handlers = [cls(output, parameters) for cls in _HANDLER_CLASSES]
@@ -529,6 +546,8 @@ class Cherry(object):
       zfile = stack.pop()
       for handlers in self._handlers_dict[zfile.get_type()]:
         handlers.handle(zfile, stack)
+      if self._cache_clean:
+        zfile.cache_clean()
     # Finalize
     for handler in self._handlers:
       handler.finalize()
@@ -546,6 +565,25 @@ def _is_cherry_file(path):
 def _fatal_error(message):
   print >> sys.stderr, message
   exit(1)
+
+
+def _parse_cache_options(value, parameters):
+  parts = value.split(',')
+  parameters[Param.CACHE_CLEAN] = False
+  parameters[Param.CACHE_DOWNLOAD] = CacheDownload.AUTO
+  for part in parts:
+    if part == 'clean':
+      parameters[Param.CACHE_CLEAN] = True
+    elif part == 'noclean':
+      parameters[Param.CACHE_CLEAN] = False
+    elif part == 'force':
+      parameters[Param.CACHE_DOWNLOAD] = CacheDownload.FORCE
+    elif part == 'local':
+      parameters[Param.CACHE_DOWNLOAD] = CacheDownload.LOCAL
+    elif part == 'auto':
+      parameters[Param.CACHE_DOWNLOAD] = CacheDownload.AUTO
+    else:
+      _fatal_error('Unknown flag for --cache-options: ' + part)
 
 
 def main():
@@ -575,6 +613,14 @@ def main():
                       dest='cache',
                       help='Cache a local copy of remote files in dev mode',
                       default=False)
+  parser.add_argument('--cache-options',
+                      help=('Options for the cache: '
+                            '[clean, noclean]; [force, local, auto]'),
+                      action='store',
+                      type=str,
+                      dest='cache_options',
+                      default='',
+                      metavar='OPTION1,OPTION2,...')
   parser.add_argument('-o', '--output',
                       action='store',
                       type=str,
@@ -601,6 +647,7 @@ def main():
     if not args.dev:
       _fatal_error('--cache cannot be used without --dev')
     parameters[Param.CACHE] = True
+    _parse_cache_options(args.cache_options, parameters)
   if args.pretty: parameters[Param.PRETTY] = True
   if args.log_level: parameters[Param.LOG_LEVEL] = args.log_level
   if not args.file:
