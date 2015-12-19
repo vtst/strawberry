@@ -11,6 +11,7 @@ import collections
 import json
 import os
 import os.path
+import re
 import shutil
 import subprocess
 import sys
@@ -65,7 +66,7 @@ def _encode(s):
 
 
 def _escape_less(s):
-  return s  # TODO
+  return re.sub(r'''['"\n\\]''', lambda m: '\\{:X} '.format(ord(m.group())), s)
 
 
 _JS_RUNTIME_START = """
