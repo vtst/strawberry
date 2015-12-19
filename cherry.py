@@ -76,8 +76,7 @@ var cherry = {};
 cherry.rewrite_path = function(path) {
   if (!cherry.is_absolute(path))
     path = cherry.BASE_URL + path;
-  // TODO: Escape path
-  return path;
+  return path.replace(/"/g, '&quot;');
 };
 
 cherry.include_js = function(path) {
