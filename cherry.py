@@ -8,6 +8,7 @@
 
 import argparse
 import collections
+import json
 import os
 import os.path
 import shutil
@@ -61,10 +62,6 @@ def _encode(s):
   """
   if type(s) == unicode: return s.encode("utf-8")
   return str(s)
-
-
-def _escape_js(s):
-  return s  # TODO
 
 
 def _escape_less(s):
@@ -289,8 +286,8 @@ class MFile(File):
 class IncludeFile(MFile):
 
   def __init__(self, t, path):
-    MFile.__init__(self, 'js', 'cherry.include_%s("%s");\n' % (
-      t, _escape_js(path)))
+    MFile.__init__(self, 'js', 'cherry.include_%s(%s);\n' % (
+      t, json.dumps(path)))
 
 
 # *************************************************************************
@@ -402,14 +399,14 @@ class JavaScriptHandler(Handler):
       self._log('Generating: %s' % out_path)
       with open(out_path, 'w') as out:
         out.write(_JS_RUNTIME_START)
-        out.write('cherry.set_base_url("%s");\n' %
-                  _escape_js(os.path.basename(out_path)))
+        out.write('cherry.set_base_url(%s);\n' %
+                  json.dumps(os.path.basename(out_path)))
         for zfile in self._files:
           path = zfile.get_path()
           if path is None:
             out.write(zfile.read())
           else:
-            out.write('cherry.include_js("%s");\n' % _escape_js(path))
+            out.write('cherry.include_js(%s);\n' % json.dumps(path))
         out.write(_JS_RUNTIME_END)
     else:
       if self._files:
