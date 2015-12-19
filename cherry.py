@@ -18,14 +18,6 @@ import urllib2
 # TODO: Single CSS file?
 # TODO: Automatic GIT ignore
 # TODO: CSS minification
-# TODO: Cache management
-#   - Download or not files in cache
-#   - Force clean
-#   - Approaches:
-#     * Have clean delete cache
-#     * Download files if possible
-#     * Flag to decide whether to download files
-#     * Flag to decide whether to clean cache
 
 _DESCRIPTION="""Compile JavaScript and CSS files for a web application.
 
@@ -34,6 +26,10 @@ Typical usages:
   cherry.py --dev: Compile the application in development mode.
   cherry.py --clean: Delete generated files.
 """
+
+
+class FatalError(Exception):
+  pass
 
 
 # *************************************************************************
@@ -51,10 +47,9 @@ def _is_url(path):
   return '://' in path
 
 
-def _remove_if_exists(self, path):
-  if os.path.isfile(path):
-    self._log(LogLevel.VERBOSE, 'Removing file: %s' % path)
-    os.remove(path)
+def _get_cache_dir(path):
+  dirname, basename = os.path.split(path)
+  return os.path.join(dirname, '.' + basename + '.cache')
 
 
 # *************************************************************************
@@ -192,9 +187,6 @@ class File(object):
   def read(self):
     raise NotImplementedError
 
-  def cache_clean(self):
-    pass
-
 
 class FSFile(File):
   """A source file stored on the file system."""
@@ -221,16 +213,13 @@ class FSFile(File):
 class UrlFile(File):
   """A source file stored remotely."""
 
-  def __init__(self, path, base, output, parameters):
+  def __init__(self, path, parameters):
     File.__init__(self)
     if parameters[Param.CACHE]:
-      self._path = os.path.join(self._get_cache_path(base, output),
-                                path.replace(':', '_').replace('/', '_'))
-      self._contents = self._read(path, parameters[Param.CACHE_DOWNLOAD])
-      # TODO: We should not write the file every time.
-      if not os.path.exists(self._path):
-        with open(self._path, 'w') as f:
-          f.write(self._contents)
+      self._path = self._get_cache_path(path, parameters[Param.CACHE_DIR])
+      self._contents = self._read_cache(path,
+                                        self._path,
+                                        parameters[Param.CACHE_DOWNLOAD])
     else:
       self._path = path
       self._contents = None
@@ -242,24 +231,41 @@ class UrlFile(File):
   def get_path(self):
     return self._path
 
-  def _get_cache_path(self, base, output):
-    path = os.path.join(base, '.' + output + '.cherry_cache')
-    if not os.path.exists(path):
-      os.makedirs(path)
-    return path
+  def _get_cache_path(self, path, cache_dir):
+    if not os.path.exists(cache_dir):
+      os.makedirs(cache_dir)
+    return os.path.join(cache_dir,
+                        path.replace(':', '_').replace('/', '_'))
 
-  def _read(self, path, cache_download):
-    # CacheDownload.FORCE, LOCAL, AUTO
-    return urllib2.urlopen(path).read()
+  def _read_cache(self, path, cache_path, cache_download):
+    if cache_download == CacheDownload.LOCAL:
+      if not os.path.isfile(cache_path):
+        raise FatalError('Cannot find file in local cache: ' + path)
+      return None
+    else:
+      try:
+        contents = urllib2.urlopen(path).read()
+        with open(cache_path, 'w') as f:
+          f.write(contents)
+        return contents
+      except urllib2.URLError:
+        if (cache_download == CacheDownload.FORCE or
+            not os.path.isfile(cache_path)):
+          raise FatalError('Cannot download file: ' + path)
+        else:
+          return None
+
+  def _read(self, path):
+    if _is_url(path):
+      return urllib2.urlopen(path).read()
+    else:
+      with open(self._path, 'r') as f:
+        return f.read()
 
   def read(self):
     if self._contents is None:
-      # TODO: Missing an argument below.
       self._contents = self._read(self._path)
     return self._contents
-
-  def cache_clean(self):
-    _remove_if_exists(self._path)
 
  
 class MFile(File):
@@ -300,6 +306,7 @@ class Param(object):
   CLEAN = 'clean'
   DEV = 'dev'
   CACHE = 'cache'
+  CACHE_DIR = 'cache_dir'
   CACHE_CLEAN = 'cache_clean'
   CACHE_DOWNLOAD = 'cache_download'
   OUTPUT = 'output'
@@ -314,9 +321,9 @@ class CacheDownload(object):
 
 
 class LogLevel(object):
-  QUITE = 0
-  DEFAULT = 1
-  VERBOSE = 2
+  QUIET = 1
+  DEFAULT = 2
+  VERBOSE = 3
 
 
 class Handler(object):
@@ -324,10 +331,10 @@ class Handler(object):
   def __init__(self, output, parameters):
     self._parameters = parameters
     self._output = output
-    self._clean = self._parameters.get(Param.CLEAN, False)
-    self._dev = self._parameters.get(Param.DEV, False)
-    self._pretty = self._parameters.get(Param.PRETTY, False)
-    self._log_level = self._parameters.get(Param.LOG_LEVEL, LogLevel.DEFAULT)
+    self._clean = self._parameters[Param.CLEAN]
+    self._dev = self._parameters[Param.DEV]
+    self._pretty = self._parameters[Param.PRETTY]
+    self._log_level = self._parameters[Param.LOG_LEVEL] or LogLevel.DEFAULT
 
   def handle(self, zfile, stack):
     raise NotImplementedError
@@ -354,7 +361,7 @@ class Handler(object):
   def _clean_sub_path(self, path):
     copy, sub_path = self._get_rel_path_internal(path, False)
     if copy:
-      _remove_if_exists(sub_path)
+      self._remove_if_exists(sub_path)
 
   def _log(self, arg1, arg2=None):
     if arg2 is None:
@@ -369,6 +376,11 @@ class Handler(object):
     self._log(LogLevel.VERBOSE,
               'Running command: %s %s' % (command, ' '.join(arguments)))
     run(command, arguments, inputs)
+
+  def _remove_if_exists(self, path):
+    if os.path.isfile(path):
+      self._log(LogLevel.VERBOSE, 'Removing file: %s' % path)
+      os.remove(path)
 
 
 class JavaScriptHandler(Handler):
@@ -385,7 +397,7 @@ class JavaScriptHandler(Handler):
   def finalize(self):
     out_path = self._output + '.js'
     if self._clean:
-      _remove_if_exists(out_path)
+      self._remove_if_exists(out_path)
     elif self._dev:
       self._log('Generating: %s' % out_path)
       with open(out_path, 'w') as out:
@@ -405,7 +417,7 @@ class JavaScriptHandler(Handler):
         options = ['--output', out_path]
         if self._pretty:
           options.append('--beautify')
-        self._run(self._parameters.get('uglifyjs', 'uglifyjs'),
+        self._run(self._parameters['uglifyjs'] or 'uglifyjs',
                   options, [zfile.read() for zfile in self._files])
 
 register_handler(JavaScriptHandler)
@@ -418,9 +430,9 @@ class SoyHandler(Handler):
   def __init__(self, *args, **kwargs):
     Handler.__init__(self, *args, **kwargs)
     self._has_soy = False
-    self._soy_dir = self._parameters.get('soy_dir', '/opt/soy')
+    self._soy_dir = self._parameters['soy_dir'] or '/opt/soy'
     self._soyutils_path = os.path.join(self._soy_dir, 'soyutils.js')
-    self._java = self._parameters.get('java', 'java')
+    self._java = self._parameters['java'] or 'java'
 
   def handle(self, zfile, stack):
     r = []
@@ -436,7 +448,7 @@ class SoyHandler(Handler):
   def _compile(self, zfile):
     outpath = zfile.get_path() + '.js'
     if self._clean:
-      _remove_if_exists(outpath)
+      self._remove_if_exists(outpath)
       self._clean_sub_path(self._soyutils_path)
     else:
       self._log('Compiling Closure Templates: %s' % zfile.get_path())
@@ -465,7 +477,7 @@ class CssHandler(Handler):
     Handler.__init__(self, *args, **kwargs)
     self._files = []
     self._has_less = False
-    self._less_js = self._parameters.get('less.js', self._LESS_JS_RUNTIME)
+    self._less_js = self._parameters['less.js'] or self._LESS_JS_RUNTIME
 
   def handle(self, zfile, stack):
     if zfile.get_type() == 'less' and not self._has_less:
@@ -480,19 +492,18 @@ class CssHandler(Handler):
   def finalize(self):
     out_path = self._output + '.css'
     if self._clean:
-      _remove_if_exists(out_path)
+      self._remove_if_exists(out_path)
       if self._has_less:
         self._clean_sub_path(self._less_js)
     elif self._dev:
-      _remove_if_exists(out_path)
+      self._remove_if_exists(out_path)
     else:
       if self._files:
         inputs = ['@import "%s";' % zfile.get_path()
                   for zfile in self._files]
         self._log('Compiling CSS stylesheet: %s' % out_path)
         options = ['-', out_path]
-        self._run(self._parameters.get('lessc', 'lessc'),
-                  options, inputs)
+        self._run(self._parameters['lessc'] or 'lessc', options, inputs)
 
 
 register_handler(CssHandler)
@@ -504,7 +515,7 @@ class CherryHandler(Handler):
 
   def __init__(self, *args, **kwargs):
     Handler.__init__(self, *args, **kwargs)
-    self._cache = self._parameters.get(Param.CACHE, False)
+    self._cache = self._parameters[Param.CACHE]
 
   def handle(self, zfile, stack):
     base = os.path.dirname(zfile.get_path())
@@ -512,7 +523,7 @@ class CherryHandler(Handler):
     for line in reversed(zfile.read().splitlines()):
       if line and not line.startswith('#'):
         if _is_url(line):
-          stack.append(UrlFile(line, base, self._output, self._parameters))
+          stack.append(UrlFile(line, self._parameters))
         else:
           if not os.path.isabs(line):
             line = os.path.join(base, line)
@@ -532,8 +543,8 @@ class Cherry(object):
 
   def __init__(self, output, parameters):
     self._build_handlers(output, parameters)
-    self._cache_clean = (self._parameters[Param.CACHE] and
-                         self._parameters[Param.CACHE_CLEAN])
+    self._cache_clean = parameters[Param.CACHE_CLEAN]
+    self._cache_dir = parameters[Param.CACHE_DIR]
   
   def _build_handlers(self, output, parameters):
     self._handlers = [cls(output, parameters) for cls in _HANDLER_CLASSES]
@@ -542,6 +553,9 @@ class Cherry(object):
       for file_type in handler.file_types:
         self._handlers_dict[file_type].append(handler)
 
+  def _delete_cache_dir(self):
+    shutil.rmtree(self._cache_dir, True)
+
   def handle(self, cherry_file):
     # Process files
     stack = [cherry_file]
@@ -549,11 +563,11 @@ class Cherry(object):
       zfile = stack.pop()
       for handlers in self._handlers_dict[zfile.get_type()]:
         handlers.handle(zfile, stack)
-      if self._cache_clean:
-        zfile.cache_clean()
     # Finalize
     for handler in self._handlers:
       handler.finalize()
+    if self._cache_clean:
+      self._delete_cache_dir()
 
 
 # *************************************************************************
@@ -565,17 +579,14 @@ def _is_cherry_file(path):
   return ext == '.cherry'
 
 
-def _fatal_error(message):
-  print >> sys.stderr, message
-  exit(1)
-
-
 def _parse_cache_options(value, parameters):
   parts = value.split(',')
   parameters[Param.CACHE_CLEAN] = False
   parameters[Param.CACHE_DOWNLOAD] = CacheDownload.AUTO
   for part in parts:
-    if part == 'clean':
+    if not part:
+      pass
+    elif part == 'clean':
       parameters[Param.CACHE_CLEAN] = True
     elif part == 'noclean':
       parameters[Param.CACHE_CLEAN] = False
@@ -586,7 +597,7 @@ def _parse_cache_options(value, parameters):
     elif part == 'auto':
       parameters[Param.CACHE_DOWNLOAD] = CacheDownload.AUTO
     else:
-      _fatal_error('Unknown flag for --cache-options: ' + part)
+      raise FatalError('Unknown flag for --cache-options: ' + part)
 
 
 def main():
@@ -641,22 +652,23 @@ def main():
                       help='Pretty-print output',
                       default=False)
   args = parser.parse_args()
-  parameters = {name: value for name, value in 
-                (entry.split('=', 1) for entry in
-                 (args.parameters_list or []))}
+  parameters = collections.defaultdict(lambda: None)
+  for name, value in (entry.split('=', 1) for entry in
+                      (args.parameters_list or [])):
+    parameters[name] = value
   if args.clean: parameters[Param.CLEAN] = True
   if args.dev: parameters[Param.DEV] = True
   if args.cache: 
     if not args.dev:
-      _fatal_error('--cache cannot be used without --dev')
+      raise FatalError('--cache cannot be used without --dev')
     parameters[Param.CACHE] = True
-    _parse_cache_options(args.cache_options, parameters)
+  _parse_cache_options(args.cache_options, parameters)
   if args.pretty: parameters[Param.PRETTY] = True
   if args.log_level: parameters[Param.LOG_LEVEL] = args.log_level
   if not args.file:
     args.file = ['.']
   if args.output and len(args) > 1:
-    _fatal_error('--output cannot be used with several inputs')
+    raise FatalError('--output cannot be used with several inputs')
   try:
     for arg in args.file:
       if os.path.isdir(arg):
@@ -665,10 +677,16 @@ def main():
         paths = [arg]
       for path in paths:
         output, _ = os.path.splitext(path)
+        parameters[Param.CACHE_DIR] = _get_cache_dir(path)
         cherry = Cherry(output, parameters)
         cherry.handle(FSFile(path))
   except RunError as e:
-    _fatal_error(e)
+    raise FatalError(str(e))
 
 
-main()
+try:
+  main()
+except FatalError as e:
+  print >> sys.stderr, str(e)
+  exit(1)
+  
