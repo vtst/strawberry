@@ -224,9 +224,10 @@ class UrlFile(File):
   def __init__(self, path, base, output, parameters):
     File.__init__(self)
     if parameters[Param.CACHE]:
-      self._contents = self._read(path)
       self._path = os.path.join(self._get_cache_path(base, output),
                                 path.replace(':', '_').replace('/', '_'))
+      self._contents = self._read(path, parameters[Param.CACHE_DOWNLOAD])
+      # TODO: We should not write the file every time.
       if not os.path.exists(self._path):
         with open(self._path, 'w') as f:
           f.write(self._contents)
@@ -247,11 +248,13 @@ class UrlFile(File):
       os.makedirs(path)
     return path
 
-  def _read(self, path):
+  def _read(self, path, cache_download):
+    # CacheDownload.FORCE, LOCAL, AUTO
     return urllib2.urlopen(path).read()
 
   def read(self):
     if self._contents is None:
+      # TODO: Missing an argument below.
       self._contents = self._read(self._path)
     return self._contents
 
