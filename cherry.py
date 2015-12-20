@@ -29,6 +29,7 @@ Typical usages:
   cherry.py --clean: Delete generated files.
 """
 
+_UPDATE_URL = 'https://rawgit.com/vtst/strawberry/master/cherry.py'
 
 class FatalError(Exception):
   pass
@@ -597,6 +598,14 @@ def _parse_cache_options(value, parameters):
       raise FatalError('Unknown flag for --cache-options: ' + part)
 
 
+def _update_cherry():
+  print 'Downloading ' + _UPDATE_URL
+  contents = urllib2.urlopen(_UPDATE_URL).read()
+  print 'Writing ' + __file__
+  with open(__file__, 'w') as f:
+    f.write(contents)
+
+
 def main():
   parser = argparse.ArgumentParser(description=_DESCRIPTION)
   parser.add_argument('file',
@@ -643,12 +652,20 @@ def main():
                       dest='clean',
                       help='Delete generated files instead of creating them',
                       default=False)
+  parser.add_argument('--update',
+                      action='store_true',
+                      dest='update',
+                      help='Update cherry.py with the latest version',
+                      default=False)
   parser.add_argument('-p', '--pretty',
                       action='store_true',
                       dest='pretty',
                       help='Pretty-print output',
                       default=False)
   args = parser.parse_args()
+  if args.update:
+    _update_cherry()
+    return
   parameters = collections.defaultdict(lambda: None)
   for name, value in (entry.split('=', 1) for entry in
                       (args.parameters_list or [])):
