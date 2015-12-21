@@ -450,13 +450,17 @@ class SoyHandler(Handler):
       self._clean_sub_path(self._soyutils_path)
     else:
       self._log('Compiling Closure Templates: %s' % zfile.get_path())
+      path = zfile.get_path()
+      # This is to work around a bug of soy compiler.
+      if not os.path.dirname(path):
+        path = os.path.join('.', path)
       self._run(self._java, [
         '-jar',
         os.path.join(self._soy_dir, 'SoyToJsSrcCompiler.jar'),
         '--codeStyle', 'stringbuilder',
         '--outputPathFormat',
         '{INPUT_DIRECTORY}/{INPUT_FILE_NAME}.js',
-        zfile.get_path()
+        path
       ], [])
     return FSFile(outpath)
 

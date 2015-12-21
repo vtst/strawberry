@@ -1,3 +1,4 @@
 * Error handler
-* Bug in cherry.py when templates.soy at root
+* Raise exception in JavaScript
+
 
