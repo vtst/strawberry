@@ -346,14 +346,14 @@ class Handler(object):
     if rel_path:
       return False, rel_path
     else:
+      name, ext = os.path.splitext(os.path.basename(path))
+      filename = name + '.dev' + ext
       if create:
-        name, ext = os.path.splitext(os.path.basename(path))
-        filename = name + '.dev' + ext
         shutil.copyfile(path, os.path.join(outdir, filename))
       return True, filename
 
   def _get_sub_path(self, path):
-    _, sub_path = self._get_rel_path_internal(path, True)
+    _, sub_path = self._get_rel_path_internal(path, not self._clean)
     return sub_path
 
   def _clean_sub_path(self, path):
@@ -438,7 +438,7 @@ class SoyHandler(Handler):
     if not self._has_soy:
       self._has_soy = True
       stack.append(
-        FSFile(os.path.join(self._get_sub_path(self._soyutils_path))))
+        FSFile(self._get_sub_path(self._soyutils_path)))
 
   def _get_out_path(self):
     out_path = self._output + '.js'

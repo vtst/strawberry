@@ -1,2 +1,3 @@
 * Error handler
-* Bug with cherry --clean (probably with soy)
+* Bug in cherry.py when templates.soy at root
+
