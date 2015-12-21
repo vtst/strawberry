@@ -13,10 +13,21 @@ swby.lang.inherits(example.Page, swby.base.Page);
  */
 example.Page.prototype.init = function() {
   var zhis = this;
+  console.log('bar');
   gapi.client.example.sayHiAuth({'name': 'You'}).then(function(resp) {
     document.getElementById('body').textContent = resp.result.data;
     zhis.loaded();
-  }, swby.base.apiErrorHandler("Cannot say Hi", true), this);
+  }/*, swby.base.apiErrorHandler("Cannot say Hi", true)*/);
+  gapi.client.example.sayLongHi({
+    'firstName': 'Vincent',
+    'lastName': 'Simonet',
+    'middleName': 'X',
+    'weekday': 'Monday',
+    'location': 'Paris'
+  }).then(function(resp) {
+    document.getElementById('body').textContent = resp.result.data;
+    zhis.loaded();
+  }/*, swby.base.apiErrorHandler("Cannot say Hi", true)*/);
 };
 
 example.CONFIG_ = {

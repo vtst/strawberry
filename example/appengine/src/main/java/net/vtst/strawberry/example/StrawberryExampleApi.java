@@ -5,6 +5,7 @@ import com.google.api.server.spi.config.Api;
 import com.google.api.server.spi.config.ApiMethod;
 import com.google.api.server.spi.config.ApiNamespace;
 import com.google.api.server.spi.config.Named;
+import com.google.api.server.spi.config.Nullable;
 
 @Api(name = "example",
      title = "Strawberry Example",
@@ -15,20 +16,38 @@ import com.google.api.server.spi.config.Named;
                                packagePath=""))
 public class StrawberryExampleApi {
   
-  public static class MyBean {
+  public static class RequestBean {
+    public String weekday;
+    public String city;
+  }
+
+  public static class ResponseBean {
     public String data;
   }
   
   @ApiMethod(name = "sayHi")
-  public MyBean sayHi(@Named("name") String name) {
-    MyBean response = new MyBean();
+  public ResponseBean sayHi(@Named("name") String name) {
+    ResponseBean response = new ResponseBean();
     response.data = "Hi, " + name;
+    return response;
+  }
+  
+  @ApiMethod(name = "sayLongHi")
+  public ResponseBean sayLongHi(
+      @Named("firstName") String firstName,
+      @Named("lastName") String lastName,
+      @Named("middleName") @Nullable String middleName,
+      RequestBean request) {
+    ResponseBean response = new ResponseBean();
+    response.data = "Hi, " + firstName + (middleName == null ? "" : " " + middleName) + " " + lastName + ".";
+    if (request.weekday != null)
+      response.data += "It's " + request.weekday + ".";
     return response;
   }
 
   @ApiMethod(name = "sayHiAuth")
-  public MyBean sayHiAuth(@Named("name") String name, User user) {
-    MyBean response = new MyBean();
+  public ResponseBean sayHiAuth(@Named("name") String name, User user) {
+    ResponseBean response = new ResponseBean();
     response.data = "Hi, " + name + ", you're ";
     if (user == null) {
       response.data += "not authenticated";
