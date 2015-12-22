@@ -190,40 +190,88 @@ swby.base.BootstrapDialogFactory.prototype.showDialog = function(
 
 
 // ****************************************************************************
-// Class swby.base.ErrorReporter
+// Error reporting
 
-// TODO: Max height
 /**
-@param {sbwy.base.DialogFactory} factory
 @param {string} message
 @param {string|Object} details
-@param {boolean=} opt_fatal
+@constructor
+@extends {Error}
+*/
+swby.base.Error = function(message, details) {
+  /** @public {string} */
+  this.message = message;
+  /** @public {string|Object} */
+  this.details = details;
+  this.stack = (new Error()).stack;
+};
+swby.lang.inherits(swby.base.Error, Error);
+
+/**
+@private
+@param {*} details
+@return {string}
  */
-swby.base.showErrorDialog_ = function(factory, message, details, opt_fatal) {
+swby.base.getErrorDetailsAsString_ = function(details) {
   function formatDetails(status, statusText) {
     return 'Error ' + status + (statusText ? ': ' + statusText : '');
   }
-  if (typeof(details) == 'object') {
-    if (details.error && details.error.code) {
-      details = formatDetails(details.error.code, details.error.message);
-    } else if (details.result && details.result.error &&
-               details.result.error.code) {
-      details = formatDetails(
+  if (typeof details == 'string') {
+    return details;
+  } else if (details.error && details.error.code) {
+    return formatDetails(details.error.code, details.error.message);
+  } else if (details.result && details.result.error &&
+      details.result.error.code) {
+    return formatDetails(
         details.result.error.code,
         details.result.error.message || details.statusText);
-    } else if (details.status && details.statusText) {
-      details = formatDetails(details.status, details.statusText);
-    } else {
-      details = null;
-    }
+  } else if (details.status && details.statusText) {
+    return formatDetails(details.status, details.statusText);
+  } else {
+    return null;
   }
-  factory.showDialog({
-    title: 'Ooops! Something went wrong.',
-    message: message,
-    details: details,
-    ok_label: (opt_fatal ? null : 'Continue'),
-    cls: 'danger'
-  }, function() { if (opt_fatal) document.body.innerHTML = ''; });
+};
+
+/**
+@private
+@param {*} error
+@return {{message: string, details: string}}
+*/
+swby.base.getErrorDisplayInfo_ = function(error) {
+  if (typeof error == 'string') {
+    return {message: error, details: null};
+  } else if (error instanceof swby.base.Error) {
+    return {message: error.message, details: swby.base.getErrorDetailsAsString_(error.details)};
+  } else if (error instanceof Error) {
+    return {message: error.message, details: null};
+  }
+  return {message: 'Unknown error', details: null};
+};
+
+/**
+@param {swby.base.DialogFactory?} dialogFactory
+@param {*} error
+@param {boolean=} opt_fatal
+*/
+swby.base.reportError = function(dialogFactory, error, opt_fatal) {
+  var displayInfo = swby.base.getErrorDisplayInfo_(error);
+  
+  console.group(displayInfo.message);
+  if (displayInfo.details) console.log(displayInfo.details);
+  if (error.stack) console.log(error.stack);
+  console.groupEnd();
+  function finalize() { if (opt_fatal) document.body.innerHTML = ''; };
+  if (dialogFactory) {
+    dialogFactory.showDialog({
+      title: 'Ooops! Something went wrong.',
+      message: displayInfo.message,
+      details: displayInfo.details,
+      ok_label: (opt_fatal ? null : 'Continue'),
+      cls: 'danger'
+    }, finalize);    
+  } else {
+    finalize();
+  }
 };
 
 // ****************************************************************************
@@ -311,14 +359,10 @@ swby.base.Loader = function(config, page_class, opt_dialogFactory) {
   // Start the show.
   swby.promise.all([
     swby.promise.onDomEvent(document, 'DOMContentLoaded').then(function(event) {
-      try {
-        if (this.page_class_.prototype.swbyIsPage_) {
-          this.page_ = new this.page_class_;
-        } else {
-          this.page_ = new swby.base.Page(this.page_class_);
-        }
-      } catch (e) {
-        this.reportException_('An exception occurred when instantiating the Page class', e);
+      if (this.page_class_.prototype.swbyIsPage_) {
+        this.page_ = new this.page_class_;
+      } else {
+        this.page_ = new swby.base.Page(this.page_class_);
       }
     }, null, this),
     this.loadGoogleApi_().then(function() {
@@ -328,13 +372,9 @@ swby.base.Loader = function(config, page_class, opt_dialogFactory) {
       ]);
     }, null, this)    
   ]).then(function() {
-    try {
-      this.page_.init();
-      window.setInterval(this.refreshToken_.bind(this), this.token_refresh_interval_ms_);
-    } catch (e) {
-      this.reportException_('An exception occurred when initializing the Page class', e);
-    }
-  }, this.reportError_, this);
+    this.page_.init();
+    window.setInterval(this.refreshToken_.bind(this), this.token_refresh_interval_ms_);
+  },  null, this).then(null, this.handleError_, this);
 };
 swby.lang.inherits(swby.base.Loader, swby.base.EventHandler);
 
@@ -357,24 +397,11 @@ swby.base.Loader.prototype.token_lifetime_s_ = 50 * 60;
 swby.base.Loader.prototype.token_refresh_interval_ms_ = 45 * 60 * 1000;
 
 /**
- @param {*} reason
+ @param {*} error
  @private
  */
-swby.base.Loader.prototype.reportError_ = function(reason) {
-  swby.base.showErrorDialog_(
-    this.dialogFactory_, reason.message, reason.details, true);
-};
-
-/**
- @param {string} message
- @param {*} exn
- */
-swby.base.Loader.prototype.reportException_ = function(message, exn) {
-  if (console.group) console.group(message);
-  else console.log(message);
-  console.log(exn instanceof Error ? exn.stack : exn);
-  if (console.group) console.endGroup();
-  throw new Error('Fatal exception');
+swby.base.Loader.prototype.handleError_ = function(error) {
+  swby.base.reportError(this.dialogFactory_, error, true);
 };
 
 /**
@@ -451,17 +478,20 @@ swby.base.Loader.prototype.getOAuth2TokenFromServer_ = function() {
           var response = null;
         }
         if (!response) {
-          reject({message: 'Cannot get OAuth2 token', details: 'The server returned a malformed response:\n' + xhr.responseText});
+          reject(new swby.base.Error(
+              'Cannot get OAuth2 token',
+              'The server returned a malformed response:\n' + xhr.responseText));
         } else if (response.status == 200) {
           gapi.auth.setToken(response.result);      
           fulfill(null);
         } else {
-          reject({message: 'Cannot get OAuth2 token', details: response});      
+          reject(new swby.base.Error('Cannot get OAuth2 token', response));      
         }
       } else if (xhr.status == 0) {
-        reject({message: 'Cannot get OAuth2 token', details: 'Timeout'});
+        reject(new swby.base.Error('Cannot get OAuth2 token', 'Timeout'));
       } else {
-        reject({message: 'Cannot get OAuth2 token', details: xhr});  // TODO: is xhr the right value?
+        // TODO: is xhr the right value?
+        reject(new swby.base.Error('Cannot get OAuth2 token', xhr));
       }      
     }).bind(this);
     xhr.timeout = this.xhr_timeout_ms_;
@@ -485,7 +515,7 @@ swby.base.Loader.prototype.authorizeLocallyAttempt_ = function(immediate, fulfil
           zhis.authorizeLocallyAttempt_(false, fulfill, reject);
         });
       } else {
-        reject({message: 'Authorization failure (' + result.error + ')'});
+        reject(new swby.base.Error('Authorization failure', result.error));
       }
     } else {
       fulfill();
@@ -528,8 +558,12 @@ swby.base.Loader.prototype.loadApis_ = function() {
     if (root && root.charAt(0) == '/' && root.charAt(1) != '/') root = '//' + window.location.host + root;
     promises.push(new swby.promise.Promise(function(fulfill, reject) {
       gapi.client.load(api.name, api.version, null, root).then(function(resp) {
-        if (resp && resp.error) reject({message: 'Cannot load API "' + api.name + '" (' + api.version + ')', details: resp});
-        else fulfill();
+        if (resp && resp.error) {
+          reject(new swby.base.Error(
+              'Cannot load API "' + api.name + '" (' + api.version + ')', resp));
+        } else {
+          fulfill();
+        }
       }, reject, this);      
     }, this));
   }, this);  

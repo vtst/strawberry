@@ -1,4 +1,1 @@
-* Error handler
-* Raise exception in JavaScript
-
-
+* Provide proper error reporting function for clients.
