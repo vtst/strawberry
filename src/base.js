@@ -168,7 +168,7 @@ swby.base.BootstrapDialogFactory.prototype.showDialog = function(
   }
   if (params.details) {
     var p = document.createElement('p');
-    p.textContent = params.message;
+    p.textContent = params.details;
     p.style = 'white-space: pre-wrap; font-size: 80%; font-family: monospace;';
     body.appendChild(p);
   }
