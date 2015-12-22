@@ -1,2 +1,4 @@
 * Error handler
-* Bug with cherry --clean (probably with soy)
+* Raise exception in JavaScript
+
+
