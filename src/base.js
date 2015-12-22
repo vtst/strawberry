@@ -316,13 +316,13 @@ swby.base.Loader = function(config, page_class, opt_dialogFactory) {
       } else {
         this.page_ = new swby.base.Page(this.page_class_);
       }
-    }, this.reportError_, this),
+    }, null, this),
     this.loadGoogleApi_().then(function() {
       return new swby.promise.all([
         this.loadApis_(),
         this.authorize_()
       ]);
-    }, this.reportError_, this)    
+    }, null, this)    
   ]).then(function() {
     this.page_.init();
     window.setInterval(this.refreshToken_.bind(this), this.token_refresh_interval_ms_);
