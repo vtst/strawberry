@@ -311,10 +311,14 @@ swby.base.Loader = function(config, page_class, opt_dialogFactory) {
   // Start the show.
   swby.promise.all([
     swby.promise.onDomEvent(document, 'DOMContentLoaded').then(function(event) {
-      if (this.page_class_.prototype.swbyIsPage_) {
-        this.page_ = new this.page_class_;
-      } else {
-        this.page_ = new swby.base.Page(this.page_class_);
+      try {
+        if (this.page_class_.prototype.swbyIsPage_) {
+          this.page_ = new this.page_class_;
+        } else {
+          this.page_ = new swby.base.Page(this.page_class_);
+        }
+      } catch (e) {
+        this.reportException_('An exception occurred when instantiating the Page class', e);
       }
     }, null, this),
     this.loadGoogleApi_().then(function() {
@@ -324,8 +328,12 @@ swby.base.Loader = function(config, page_class, opt_dialogFactory) {
       ]);
     }, null, this)    
   ]).then(function() {
-    this.page_.init();
-    window.setInterval(this.refreshToken_.bind(this), this.token_refresh_interval_ms_);
+    try {
+      this.page_.init();
+      window.setInterval(this.refreshToken_.bind(this), this.token_refresh_interval_ms_);
+    } catch (e) {
+      this.reportException_('An exception occurred when initializing the Page class', e);
+    }
   }, this.reportError_, this);
 };
 swby.lang.inherits(swby.base.Loader, swby.base.EventHandler);
@@ -355,6 +363,18 @@ swby.base.Loader.prototype.token_refresh_interval_ms_ = 45 * 60 * 1000;
 swby.base.Loader.prototype.reportError_ = function(reason) {
   swby.base.showErrorDialog_(
     this.dialogFactory_, reason.message, reason.details, true);
+};
+
+/**
+ @param {string} message
+ @param {*} exn
+ */
+swby.base.Loader.prototype.reportException_ = function(message, exn) {
+  if (console.group) console.group(message);
+  else console.log(message);
+  console.log(exn instanceof Error ? exn.stack : exn);
+  if (console.group) console.endGroup();
+  throw new Error('Fatal exception');
 };
 
 /**
