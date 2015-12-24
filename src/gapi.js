@@ -1,5 +1,23 @@
 swby.lang.namespace('swby.gapi');
 
+
+/**
+@param {string} path
+@param {Object.<string, string>} params
+@return {string}
+*/
+swby.gapi.buildUrl_ = function(path, params) {
+  var url = path;
+  if (params) {
+    var q = '';
+    for (var key in params) {
+      q += (q ? '&' : '?') + encodeURIComponent(key) + '=' + encodeURIComponent(params[key]);
+    }
+    url += q;
+  }
+  return url;
+};
+
 // *************************************************************************
 // Class swby.gapi.Token
 
@@ -26,17 +44,78 @@ swby.gapi.Token.prototype.state;
 /**
 @constructor
 @extends {swby.promise.Promise}
+@template VALUE, REASON
 */
 swby.gapi.Request = function() {
-  swby.promise.Promise.call(this);
+  swby.promise.Promise.call(this, this.execute_, this);
 };
 swby.lang.inherits(swby.gapi.Request, swby.promise.Promise);
+
+/**
+@param {function(VALUE)} fulfill
+@param {function(REASON)} reject
+@protected
+*/
+swby.gapi.Request.prototype.execute_ = function(fulfill, reject) {
+  
+};
 
 /**
 @param {function(Object|boolean, string)} callback
 */
 swby.gapi.Request.prototype.execute = function(callback) {
-  
+  // TODO: Check how it should behave in case of error.
+  this.execute_(callback, callback);
+};
+
+// *************************************************************************
+// Class swby.gapi.XhrRequest
+
+/**
+typedef {{path:string,
+          method: (string|undefined),
+          params: Object.<string, string>,
+          headers: Object.<string, string>,
+          body: (string|Object)}} args
+ */
+swby.gapi.XhrRequestArgs;
+
+/**
+@constructor
+@extends {swby.gapi.Request}
+@param {swby.gapi.XhrRequestArgs}
+@template VALUE, REASON
+*/
+swby.gapi.XhrRequest = function(args) {
+  swby.gapi.Request.call(this);
+  /** @private {swby.gapi.XhrRequestArgs} */
+  this.args_ = args;
+};
+swby.lang.inherits(swby.gapi.XhrRequest, swby.gapi.Request);
+
+/**
+@param {function(VALUE)} fulfill
+@param {function(REASON)} reject
+@protected
+*/
+swby.gapi.XhrRequest.prototype.execute_ = function(fulfill, reject) {
+  var xhr = new XMLHttpRequest();
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState == 4) {
+      // TODO: Handle error while parsing JSON.
+      // TODO: Check how it should behave in case of error.
+      if (xhr.status == 200) fulfill(JSON.parse(xhr.responseText));
+      else reject({error: 'Error'});
+    }
+  }
+  var url = swby.gapi.buildUrl_(args.path, args.params);
+  xhr.open(this.args_.method || 'GET', url);
+  if (this.args_.headers) {
+    for (var name in this.args_.headers) {
+      xhr.setRequestHeader(name, this.args_.headers[name]);
+    }
+  }
+  xhr.send(this.args_.body || null);  
 };
 
 // *************************************************************************
@@ -141,7 +220,7 @@ swby.gapi.client.load = function(name, version, callback) {
 @return {swby.gapi.client.Request}
 */
 swby.gapi.client.request = function(args) {
-  
+  return new swby.gapi.XhrRequest(args);
 };
 
 /**
