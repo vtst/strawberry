@@ -1,3 +1,7 @@
+// To run this test:
+//   npm install -g promises-aplus-tests
+//   promises-aplus-tests promise_test.js
+
 var fs = require('fs');
 var vm = require('vm');
 
@@ -9,41 +13,48 @@ function include(path) {
 include('../src/lang.js');
 include('../src/promise.js');
 
-module.exports = {
-  resolved: function(value) {
-    return new swby.promise.Promise(function(fulfill, reject) {
-      fulfill(value);
-    });
-  },
-  rejected: function(reason) {
-    return new swby.promise.Promise(function(fulfill, reject) {
-      reject(reason);
-    });  
-  },
-  deferred: function() {
-    var object = {};
-    object.promise = new swby.promise.Promise(function(fulfill, reject) {
-      object.resolve = fulfill;
-      object.reject = reject;
-    });
-    return object;
+module.exports = {};
+
+module.exports.functor = function(Cls) {
+  return {
+    resolved: function(value) {
+      return new swby.promise.Promise(function(fulfill, reject) {
+        fulfill(value);
+      });
+    },
+    rejected: function(reason) {
+      return new swby.promise.Promise(function(fulfill, reject) {
+        reject(reason);
+      });  
+    },
+    deferred: function() {
+      var object = {
+        values: [],
+        reasons: [],
+        resolve: function(value) {
+          if (this.fulfill_) {
+            this.fulfill_(value);
+          } else {
+            this.values.push(value);
+          }
+        },
+        reject: function(reason) {
+          if (this.reject_) {
+            this.reject_(reason);
+          } else {
+            this.reasons.push(reason);
+          }
+        }
+      };
+      object.promise = new Cls(function(fulfill, reject) {
+        if (object.run_) throw 'Multile calls.';
+        object.run_ = true;
+        object.fulfill_ = fulfill;
+        object.reject_ = reject;
+        object.values.forEach(fulfill);
+        object.reasons.forEach(reject);
+      });
+      return object;
+    }
   }
 };
-
-var deferred  = module.exports.deferred;
-
-function main() {
-  var promise1 = new swby.promise.Promise(function(fulfill, reject) {
-    setTimeout(function() { fulfill(1); }, 10);
-  });
-  var promise2 = new swby.promise.Promise(function(fulfill, reject) {
-    setTimeout(function() { fulfill(2); }, 10);
-  });
-  swby.promise.all({a: promise1, b: promise2}).then(function(value) {
-    console.log(value);
-  }, function(reason) {
-    console.log(reason);
-  });
-};
-
-main();

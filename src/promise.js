@@ -57,36 +57,44 @@ swby.promise.State_ = {
 };
 
 // ****************************************************************************
-// Class swby.promise.Promise
+// Interface swby.promise.IPromise
 
 /**
-@param {function(this:CONTEXT,function(VALUE),function(REASON))=} opt_fn
-@param {CONTEXT=} opt_context
+@interface
+@template VALUE,REASON
+*/
+swby.promise.IPromise = function() {};
+
+/**
+@param {function(this:THEN_CONTEXT, VALUE)=} opt_onFulfilled
+@param {function(this:THEN_CONTEXT, REASON)=} opt_onRejected
+@param {THEN_CONTEXT=} opt_context
+@return {swby.promise.IPromise}
+@template THEN_CONTEXT
+*/
+swby.promise.IPromise.prototype.then = function(
+    opt_onFulfilled, opt_onRejected, opt_context) {};
+
+// ****************************************************************************
+// Class swby.promise.Promise_
+
+/**
 @constructor
 @template CONTEXT,VALUE,REASON
+@implements {swby.promise.IPromise}
 */
-swby.promise.Promise = function(opt_fn, opt_context) {
+swby.promise.Promise_ = function() {
   /** @private {swby.promise.State_} */
   this.state_ = swby.promise.State_.PENDING;
   /** @private {Array.<swby.promise.ChildPromise_>} */
   this.children_ = [];
-  
-  if (opt_fn) {
-    try {
-      opt_fn.call(opt_context || this,
-                  this.fulfill_.bind(this),
-                  this.reject_.bind(this));
-    } catch (e) {
-      this.reject_(e);
-    }
-  }
 };
 
 /**
 @param {VALUE} value
 @private
 */
-swby.promise.Promise.prototype.fulfill_ = function(value) {
+swby.promise.Promise_.prototype.fulfill_ = function(value) {
   if (this.state_ != swby.promise.State_.PENDING) return;
   this.state_ = swby.promise.State_.FULFILLED;
   /** @private {VALUE} */
@@ -98,7 +106,7 @@ swby.promise.Promise.prototype.fulfill_ = function(value) {
 @param {REASON} reason
 @private
 */
-swby.promise.Promise.prototype.reject_ = function(reason) {
+swby.promise.Promise_.prototype.reject_ = function(reason) {
   if (this.state_ != swby.promise.State_.PENDING) return;
   this.state_ = swby.promise.State_.REJECTED;
   /** @private {REASON} */
@@ -110,10 +118,10 @@ swby.promise.Promise.prototype.reject_ = function(reason) {
 @param {function(this:THEN_CONTEXT, VALUE)=} opt_onFulfilled
 @param {function(this:THEN_CONTEXT, REASON)=} opt_onRejected
 @param {THEN_CONTEXT=} opt_context
-@return {swby.promise.Promise}
+@return {swby.promise.IPromise}
 @template THEN_CONTEXT
 */
-swby.promise.Promise.prototype.then = function(
+swby.promise.Promise_.prototype.then = function(
   opt_onFulfilled, opt_onRejected, opt_context) {
   var childPromise = new swby.promise.ChildPromise_(
     swby.promise.ifFunction_(opt_onFulfilled),
@@ -166,7 +174,7 @@ swby.promise.resolve_ = function(promise, x) {
 @param {swby.promise.ChildPromise_} child
 @private
  */
-swby.promise.Promise.prototype.resolveChild_ = function(child) {  
+swby.promise.Promise_.prototype.resolveChild_ = function(child) {  
   if (this.state_ == swby.promise.State_.FULFILLED) {
     if (child.onFulfilled_) {
       try {
@@ -198,7 +206,7 @@ swby.promise.Promise.prototype.resolveChild_ = function(child) {
 /**
 @private
 */
-swby.promise.Promise.prototype.resolveAndClearChildren_ = function() {
+swby.promise.Promise_.prototype.resolveAndClearChildren_ = function() {
   var children = this.children_;
   this.children_ = [];
   swby.promise.async_(function() {
@@ -207,6 +215,29 @@ swby.promise.Promise.prototype.resolveAndClearChildren_ = function() {
     }
   }, this);
 };
+
+// ****************************************************************************
+// Class swby.promise.Promise
+
+/**
+@param {function(this:CONTEXT,function(VALUE),function(REASON))=} opt_fn
+@param {CONTEXT=} opt_context
+@constructor
+@template CONTEXT,VALUE,REASON
+*/
+swby.promise.Promise = function(opt_fn, opt_context) {
+  swby.promise.Promise_.call(this);
+  if (opt_fn) {
+    try {
+      opt_fn.call(opt_context || this,
+                  this.fulfill_.bind(this),
+                  this.reject_.bind(this));
+    } catch (e) {
+      this.reject_(e);
+    }
+  }
+};
+swby.lang.inherits(swby.promise.Promise, swby.promise.Promise_);
 
 // ****************************************************************************
 // Class swby.promise.ChildPromise_
@@ -225,6 +256,38 @@ swby.promise.ChildPromise_ = function(opt_onFulfilled, opt_onRejected, opt_conte
   this.context_ = opt_context;
 };
 swby.lang.inherits(swby.promise.ChildPromise_, swby.promise.Promise);
+
+// ****************************************************************************
+// Class swby.promise.LazyPromise
+
+/**
+@param {function(this:CONTEXT,function(VALUE),function(REASON))=} opt_fn
+@param {CONTEXT=} opt_context
+@constructor
+@template CONTEXT,VALUE,REASON
+*/
+swby.promise.LazyPromise = function(opt_fn, opt_context) {
+  swby.promise.Promise_.call(this);
+  if (opt_fn) {
+    /** @private {function(function(VALUE),function(REASON))=} */
+    this.lazyFn_ = opt_fn.bind(opt_context || this);
+  }
+};
+swby.lang.inherits(swby.promise.LazyPromise, swby.promise.Promise_);
+
+swby.promise.LazyPromise.prototype.then = function(
+    opt_onFulfilled, opt_onRejected, opt_context) {
+  if (this.lazyFn_) {
+    try {
+      this.lazyFn_(this.fulfill_.bind(this), this.reject_.bind(this));
+    } catch (e) {
+      this.reject_(e);
+    }
+    this.lazyFn_ = null;
+  }
+  return swby.promise.Promise_.prototype.then.call(
+      this, opt_onFulfilled, opt_onRejected, opt_context);
+};
 
 // ****************************************************************************
 
@@ -259,7 +322,7 @@ swby.promise.getSize_ = function(obj) {
 };
 
 /**
-@param {Object.<string, swby.promise.Promise>|Array.<swby.promise.Promise>} promises
+@param {Object.<string, swby.promise.IPromise>|Array.<swby.promise.IPromise>} promises
 @return {swby.promise.Promise}
 */
 swby.promise.all = function(promises) {
@@ -288,7 +351,7 @@ swby.promise.all = function(promises) {
 };
 
 /**
-@param {Object.<string, swby.promise.Promise>|Array.<swby.promise.Promise>} promises
+@param {Object.<string, swby.promise.IPromise>|Array.<swby.promise.IPromise>} promises
 @return {swby.promise.Promise}
 */
 swby.promise.any = function(promises) {
