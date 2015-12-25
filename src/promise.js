@@ -115,7 +115,6 @@ swby.promise.Promise.prototype.reject_ = function(reason) {
 */
 swby.promise.Promise.prototype.then = function(
   opt_onFulfilled, opt_onRejected, opt_context) {
-  // TODO: Filter arguments if they are not functions.
   var childPromise = new swby.promise.ChildPromise_(
     swby.promise.ifFunction_(opt_onFulfilled),
     swby.promise.ifFunction_(opt_onRejected), opt_context);
