@@ -47,18 +47,16 @@ swby.gapi.Token.prototype.state;
 @template VALUE, REASON
 */
 swby.gapi.Request = function() {
-  swby.promise.Promise.call(this, this.execute_, this);
+  swby.promise.LazyPromise.call(this, this.execute_, this);
 };
-swby.lang.inherits(swby.gapi.Request, swby.promise.Promise);
+swby.lang.inherits(swby.gapi.Request, swby.promise.LazyPromise);
 
 /**
 @param {function(VALUE)} fulfill
 @param {function(REASON)} reject
-@protected
+@protected @abstract
 */
-swby.gapi.Request.prototype.execute_ = function(fulfill, reject) {
-  
-};
+swby.gapi.Request.prototype.execute_ = function(fulfill, reject) {};
 
 /**
 @param {function(Object|boolean, string)} callback
@@ -239,17 +237,5 @@ swby.gapi.client.newBatch = function(args) {
 @param {string} apiKey
 */
 swby.gapi.client.setApiKey = function(apiKey) {
-  
-};
-
-/**
-*/
-swby.gapi.client. = function() {
-  
-};
-
-/**
-*/
-swby.gapi.client. = function() {
   
 };
