@@ -23,7 +23,7 @@ swby.lang.namespace = function(namespace) {
  */
 swby.lang.assert = function(statement, opt_message) {
   if (!statement) throw new Error(opt_message || 'Assertion error');
-}
+};
 
 /**
  @param {Function} childCtor
