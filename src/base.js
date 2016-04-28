@@ -584,9 +584,47 @@ swby.base.Loader.prototype.refreshToken_ = function() {
   else (this.authorize_());
 };
 
+// ****************************************************************************
+// class swby.base.DefaultPage_
+
 /**
-@param {Function|function()} cls
+@constructor
+@extends {swby.base.Page}
+ */
+swby.base.DefaultPage_ = function() {
+  swby.base.Page.call(this);
+};
+swby.lang.inherits(swby.base.DefaultPage_, swby.base.Page);
+
+/** @private {Array.<function()>} */
+swby.base.DefaultPage_.callbacks_ = [];
+
+/**
+ */
+swby.base.DefaultPage_.prototype.init = function() {
+  swby.base.DefaultPage_.callbacks_.forEach(function(callback) {
+    callback();
+  });
+  swby.base.DefaultPage_.callbacks_ = null;
+};
+
+// ****************************************************************************
+// Top-level functions
+
+/**
+@param {function()} callback
+ */
+swby.base.onceReady = function(callback) {
+  if (swby.base.DefaultPage_.callbacks_) {
+    swby.base.DefaultPage_.callbacks_.push(callback);
+  } else {
+    callback();
+  }
+};
+
+/**
+@param {Function|function()=} opt_cls
 */
-swby.base.init = function(config, cls) {
-  new swby.base.Loader(config, cls);
+swby.base.init = function(config, opt_cls) {
+  new swby.base.Loader(config, opt_cls || swby.base.DefaultPage_);
 };
