@@ -419,7 +419,7 @@ swby.base.Loader.prototype.needGoogleApi_ = function() {
 @private
 */
 swby.base.Loader.prototype.needGoogleApi_ = function() {
-  return !(gapi && gapi.auth && gapi.client);
+  return !(swby_global.gapi && swby_global.gapi.auth && swby_global.gapi.client);
 };
 
 /**
@@ -443,7 +443,7 @@ swby.base.Loader.prototype.googleApiCallbackPromise_ = function(callbackName, op
  @private
  */
 swby.base.Loader.prototype.loadGoogleApi_ = function() {
-  if (this.needGoogleApi_() && this.googleApiNotLoaded_()) {
+  if (this.needGoogleApi_()) {
     return this.googleApiCallbackPromise_(this.gapi_callback_, function() {
       var url = this.gapi_url_ + '?onload=' + this.gapi_callback_;
       document.write('<script type="application/javascript" src="' + url + '"></script>');          
