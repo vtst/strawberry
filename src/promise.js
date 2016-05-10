@@ -289,6 +289,22 @@ swby.promise.LazyPromise.prototype.then = function(
       this, opt_onFulfilled, opt_onRejected, opt_context);
 };
 
+/**
+@param {VALUE} value
+*/
+swby.promise.LazyPromise.prototype.forceFulfill = function(value) {
+  this.lazyFn_ = null;
+  this.fulfill_(value);
+};
+
+/**
+@param {REASON} reason
+*/
+swby.promise.LazyPromise.prototype.forceReject = function(reason) {
+  this.lazyFn_ = null;
+  this.reject_(reason);
+};
+
 // ****************************************************************************
 
 /**
