@@ -176,6 +176,11 @@ swby.base.BootstrapDialogFactory.prototype.showDialog = function(
     var btn = swby.util.getElementByClassName(dialog, 'btn');
     btn.classList.add('btn-' + cls);
     btn.textContent = params.ok_label;
+    function clickListener(event) {
+      btn.removeEventListener('click', clickListener);
+      callback();
+    }
+    btn.addEventListener('click', clickListener);
   } else {
     var footer = swby.util.getElementByClassName(dialog, 'modal-footer');
     footer.style.display = 'none';
@@ -184,7 +189,6 @@ swby.base.BootstrapDialogFactory.prototype.showDialog = function(
   $(dialog).modal('show');
   $(dialog).on('hidden.bs.modal', function(event) {
     document.body.removeChild(dialog);
-    callback();
   });
 };
 
