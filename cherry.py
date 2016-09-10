@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 # A simple tool to build JavaScript scripts (with Closure Templates) and LESS
 # stylesheets for a web project.
@@ -189,14 +189,14 @@ class File(object):
 class FSFile(File):
   """A source file stored on the file system."""
 
-  def __init__(self, path):
+  def __init__(self, path, type_=None):
     File.__init__(self)
     self._path = path
     self._contents = None
+    self._type = type_ or os.path.splitext(self._path)[1][1:]
 
   def get_type(self):
-    _, ext = os.path.splitext(self._path)
-    return ext[1:]
+    return self._type
 
   def get_path(self):
     return self._path
@@ -211,7 +211,7 @@ class FSFile(File):
 class UrlFile(File):
   """A source file stored remotely."""
 
-  def __init__(self, path, parameters):
+  def __init__(self, path, parameters, type_=None):
     File.__init__(self)
     if parameters[Param.CACHE]:
       self._path = self._get_cache_path(path, parameters[Param.CACHE_DIR])
@@ -221,10 +221,10 @@ class UrlFile(File):
     else:
       self._path = path
       self._contents = None
+    self._type = type_ or os.path.splitext(self._path)[1][1:]
 
   def get_type(self):
-    _, ext = os.path.splitext(self._path)
-    return ext[1:]
+    return self._type
 
   def get_path(self):
     return self._path
@@ -524,12 +524,15 @@ class CherryHandler(Handler):
     result = []
     for line in reversed(zfile.read().splitlines()):
       if line and not line.startswith('#'):
-        if _is_url(line):
-          stack.append(UrlFile(line, self._parameters))
+        parts = line.split(' ', 1)
+        path = parts[0]
+        type_ = parts[1] if len(parts) == 2 else None
+        if _is_url(path):
+          stack.append(UrlFile(path, self._parameters, type_))
         else:
-          if not os.path.isabs(line):
-            line = os.path.join(base, line)
-          stack.append(FSFile(line))
+          if not os.path.isabs(path):
+            path = os.path.join(base, path)
+          stack.append(FSFile(path, type_))
 
   def finalize(self):
     pass
