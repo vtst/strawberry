@@ -233,7 +233,7 @@ class UrlFile(File):
     if not os.path.exists(cache_dir):
       os.makedirs(cache_dir)
     return os.path.join(cache_dir,
-                        path.replace(':', '_').replace('/', '_'))
+                        path.replace(':', '_').replace('/', '_').replace('?', '_'))
 
   def _read_cache(self, path, cache_path, cache_download):
     if cache_download == CacheDownload.LOCAL:
