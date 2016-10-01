@@ -213,6 +213,7 @@ class UrlFile(File):
 
   def __init__(self, path, parameters, type_=None):
     File.__init__(self)
+    self._type = type_ or os.path.splitext(path)[1][1:]
     if parameters[Param.CACHE]:
       self._path = self._get_cache_path(path, parameters[Param.CACHE_DIR])
       self._contents = self._read_cache(path,
@@ -221,7 +222,6 @@ class UrlFile(File):
     else:
       self._path = path
       self._contents = None
-    self._type = type_ or os.path.splitext(self._path)[1][1:]
 
   def get_type(self):
     return self._type
@@ -232,8 +232,11 @@ class UrlFile(File):
   def _get_cache_path(self, path, cache_dir):
     if not os.path.exists(cache_dir):
       os.makedirs(cache_dir)
-    return os.path.join(cache_dir,
-                        path.replace(':', '_').replace('/', '_').replace('?', '_'))
+    cache_path = os.path.join(
+      cache_dir, path.replace(':', '_').replace('/', '_').replace('?', '_'))
+    if not cache_path.endswith('.' + self._type):
+      cache_path += '.' + self._type
+    return cache_path
 
   def _read_cache(self, path, cache_path, cache_download):
     if cache_download == CacheDownload.LOCAL:
