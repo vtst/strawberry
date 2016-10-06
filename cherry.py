@@ -166,6 +166,21 @@ def run(command, arguments=[], inputs=[]):
                    arguments=arguments)
 
 
+# *************************************************************************
+# wget
+
+USE_WGET=True
+
+def wget(url):
+  if USE_WGET:
+    try:
+      return '\n'.join(run('wget', ['-q', '-O', '-', url]))
+    except RunError as e:
+      raise urllib2.URLError(e)
+  else:
+    return urllib2.urlopen(path).read()
+  
+
 
 # *************************************************************************
 # Files
@@ -245,7 +260,7 @@ class UrlFile(File):
       return None
     else:
       try:
-        contents = urllib2.urlopen(path).read()
+        contents = wget(path)
         with open(cache_path, 'w') as f:
           f.write(contents)
         return contents
@@ -258,7 +273,7 @@ class UrlFile(File):
 
   def _read(self, path):
     if _is_url(path):
-      return urllib2.urlopen(path).read()
+      return wget(path)
     else:
       with open(self._path, 'r') as f:
         return f.read()
@@ -610,7 +625,7 @@ def _parse_cache_options(value, parameters):
 
 def _update_cherry():
   print 'Downloading ' + _UPDATE_URL
-  contents = urllib2.urlopen(_UPDATE_URL).read()
+  contents = wget(_UPDATE_URL)
   print 'Writing ' + __file__
   with open(__file__, 'w') as f:
     f.write(contents)
