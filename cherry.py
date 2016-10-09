@@ -167,18 +167,16 @@ def run(command, arguments=[], inputs=[]):
 
 
 # *************************************************************************
-# wget
+# Read URL
 
-USE_WGET=True
-
-def wget(url):
-  if USE_WGET:
+def read_url(url, use_wget=False):
+  if use_wget:
     try:
       return '\n'.join(run('wget', ['-q', '-O', '-', url]))
     except RunError as e:
       raise urllib2.URLError(e)
   else:
-    return urllib2.urlopen(path).read()
+    return urllib2.urlopen(url).read()
   
 
 
@@ -229,6 +227,7 @@ class UrlFile(File):
   def __init__(self, path, parameters, type_=None):
     File.__init__(self)
     self._type = type_ or os.path.splitext(path)[1][1:]
+    self._use_wget = parameters[Param.USE_WGET]
     if parameters[Param.CACHE]:
       self._path = self._get_cache_path(path, parameters[Param.CACHE_DIR])
       self._contents = self._read_cache(path,
@@ -260,7 +259,7 @@ class UrlFile(File):
       return None
     else:
       try:
-        contents = wget(path)
+        contents = read_url(path, self._use_wget)
         with open(cache_path, 'w') as f:
           f.write(contents)
         return contents
@@ -273,7 +272,7 @@ class UrlFile(File):
 
   def _read(self, path):
     if _is_url(path):
-      return wget(path)
+      return read_url(path, self._use_wget)
     else:
       with open(self._path, 'r') as f:
         return f.read()
@@ -328,6 +327,7 @@ class Param(object):
   OUTPUT = 'output'
   PRETTY = 'pretty'
   LOG_LEVEL = 'log_level'
+  USE_WGET = 'use_wget'
 
 
 class CacheDownload(object):
@@ -430,11 +430,16 @@ class JavaScriptHandler(Handler):
     else:
       if self._files:
         self._log('Minifying JavaScript: %s' % out_path)
-        options = ['--output', out_path]
+        # -nm for compatibility with AngularJS
+        options = ['--output', out_path, '-nm', '-nc']
         if self._pretty:
           options.append('--beautify')
         self._run(self._parameters['uglifyjs'] or 'uglifyjs',
                   options, [zfile.read() for zfile in self._files])
+        return
+        with open(out_path, 'w') as outf:
+          for zfile in self._files:
+            outf.write(zfile.read())
 
 register_handler(JavaScriptHandler)
 
@@ -623,9 +628,9 @@ def _parse_cache_options(value, parameters):
       raise FatalError('Unknown flag for --cache-options: ' + part)
 
 
-def _update_cherry():
+def _update_cherry(use_wget):
   print 'Downloading ' + _UPDATE_URL
-  contents = wget(_UPDATE_URL)
+  contents = read_url(_UPDATE_URL, use_wget)
   print 'Writing ' + __file__
   with open(__file__, 'w') as f:
     f.write(contents)
@@ -687,9 +692,14 @@ def main():
                       dest='pretty',
                       help='Pretty-print output',
                       default=False)
+  parser.add_argument('-w', '--use-wget',
+                      action='store_true',
+                      dest='use_wget',
+                      help='Use wget to download files',
+                      default=False)
   args = parser.parse_args()
   if args.update:
-    _update_cherry()
+    _update_cherry(args.use_wget)
     return
   parameters = collections.defaultdict(lambda: None)
   for name, value in (entry.split('=', 1) for entry in
@@ -697,6 +707,7 @@ def main():
     parameters[name] = value
   if args.clean: parameters[Param.CLEAN] = True
   if args.dev: parameters[Param.DEV] = True
+  if args.use_wget: parameters[Param.USE_WGET] = True
   if args.cache: 
     if not args.dev:
       raise FatalError('--cache cannot be used without --dev')
