@@ -398,7 +398,7 @@ swby.promise.any = function(promises) {
 /**
 @param {*} value
 @return {swby.promise.Promise}
- */
+*/
 swby.promise.fulfilled = function(value) {
   return new swby.promise.Promise(function(fulfill, reject) {
     fulfill(value);

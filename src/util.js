@@ -43,6 +43,21 @@ swby.util.getSelectValue = function(el) {
 };
 
 /**
+@param {Array.<T>} arr
+@param {function(T): U} fn
+@return {Array.<U>}
+@param {Object=} opt_obj
+@template T, U
+*/
+swby.util.map = function(arr, fn, opt_obj) {
+  var result = [];
+  arr.forEach(function(elt) {
+    result.push(fn.call(opt_obj, elt));
+  });
+  return result;
+}
+
+/**
 @param {Array.<T1>} arr1
 @param {Array.<T2>} arr2
 @param {function(T1, T2)} fn
