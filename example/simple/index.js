@@ -1,16 +1,4 @@
-swby.lang.namespace('example');
-
-/**
- */
-//example.Page.prototype.init = function() {
-//  var zhis = this;
-//  gapi.client.plus.people.get( {'userId' : 'me'} ).execute(function(resp) {
-//    document.getElementById('body').textContent = 'Hello ' + resp.displayName + '!';
-//    zhis.loaded();
-//  });
-//}
-
-example.CONFIG_ = {
+var CONFIG = {
     apis: [{name: 'plus', version: 'v1'}],
     clientId: '128116520821-dullqdj9l0fd4ljhsjf849kraga0j8sd.apps.googleusercontent.com',
     scopes: ['https://www.googleapis.com/auth/userinfo.email',
@@ -23,10 +11,10 @@ example.CONFIG_ = {
       storageBucket: 'vtst-strawberry.appspot.com',
       messagingSenderId: '128116520821'     
     },
-    get_token_from_server: false // TODO: Implement
+    get_token_from_server: false
 };
 
-swby.gapi.init(example.CONFIG_).then(function(resp) {
+swby.gapi.init(CONFIG).then(function(resp) {
   gapi.client.plus.people.get( {'userId' : 'me'} ).execute(function(resp) {
     document.getElementById('body').textContent = 'Hello ' + resp.displayName + '!';
     document.body.classList.remove('swby-loading');
@@ -34,4 +22,3 @@ swby.gapi.init(example.CONFIG_).then(function(resp) {
 }, function(err) {
   console.log('ERROR', err);
 });
-
