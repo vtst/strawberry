@@ -16,11 +16,12 @@ example.CONFIG_ = {
     scopes: ['https://www.googleapis.com/auth/userinfo.email',
              'https://www.googleapis.com/auth/plus.login'],
     firebase: {
-      apiKey: "AIzaSyCpkSttW6H5_JscIImSgriVosEQ8P4FYlA",
-      authDomain: "vtst-strawberry.firebaseapp.com",
-      databaseURL: "https://vtst-strawberry.firebaseio.com",
-      storageBucket: "vtst-strawberry.appspot.com",
-      messagingSenderId: "128116520821"     
+      version: '3.6.0',
+      apiKey: 'AIzaSyCpkSttW6H5_JscIImSgriVosEQ8P4FYlA',
+      authDomain: 'vtst-strawberry.firebaseapp.com',
+      databaseURL: 'https://vtst-strawberry.firebaseio.com',
+      storageBucket: 'vtst-strawberry.appspot.com',
+      messagingSenderId: '128116520821'     
     },
     get_token_from_server: false // TODO: Implement
 };

@@ -14,8 +14,13 @@ swby.gapi.Api;
 
 /**
 @typedef {{
-    
-}}
+    version: string
+    apiKey: string,
+    authDomain: string,
+    databaseURL: string,
+    storageBucket: string,
+    messagingSenderId: string
+  }}
 */
 swby.gapi.FirebaseConfig;
 
@@ -146,6 +151,11 @@ swby.gapi.loadJavaScript_ = function(src, opt_timeoutMs, opt_error) {
 /**
 @private @const {number}
 */
+swby.gapi.RELOAD_BEFORE_EXPIRES_SECS_ = 300;  // 5 minutes
+
+/**
+@private @const {number}
+*/
 swby.gapi.TIMEOUT_MS_ = 5000;
 
 /**
@@ -156,7 +166,7 @@ swby.gapi.GAPI_JS_URL_ = 'https://apis.google.com/js/api.js';
 /**
 @private @const {string}
 */
-swby.gapi.FIREBASE_URL_ = 'https://www.gstatic.com/firebasejs/3.6.0/firebase.js';
+swby.gapi.FIREBASE_URL_ = 'https://www.gstatic.com/firebasejs/<version>/firebase.js';
 
 /**
 @private @const {string}
@@ -238,17 +248,41 @@ swby.gapi.Init_.prototype.loadClient_ = function() {
 
 /**
 Authenticate.
-@return {swby.promise.Promise}
+@return {swby.promise.Promise<AuthResponse>}
 */
 swby.gapi.Init_.prototype.authenticate_ = function() {
   if (gapi.auth2.getAuthInstance().isSignedIn.get()) {
-    return swby.promise.fulfilled();
+    var currentUser = gapi.auth2.getAuthInstance().currentUser.get();
+    var authResponse = currentUser.getAuthResponse();
+    if (authResponse.expires_in < swby.gapi.RELOAD_BEFORE_EXPIRES_SECS_) {
+      // If the token expires soon, refresh it now.
+      var auth = currentUser.reloadAuthResponse();
+    } else {
+      // The token does not expire soon, do nothing.
+      var auth = swby.promise.fulfilled(authResponse);
+    }
   } else {
-    return this.confirm_().then(function() {
-      // TODO(vtst): Pass parameters?
-      return gapi.auth2.getAuthInstance().signIn();
+    // Sign in with user consent.
+    var auth = this.confirm_().then(function() {
+      return gapi.auth2.getAuthInstance().signIn().then(function(resp) {
+        return gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse();
+      });
     });
   }
+  // Perform authentication, and setup the periodic reload of the auth response.
+  return auth.then(this.setupReloadAuthResponse_);
+};
+
+/**
+@param {AuthResponse} authResponse
+*/
+swby.gapi.Init_.prototype.setupReloadAuthResponse_ = function(authResponse) {
+  var zhis = this;
+  // TODO: To be tested.
+  window.setTimeout(function() {
+    gapi.auth2.getAuthInstance().currentUser.get().reloadAuthResponse().then(
+        zhis.setupReloadAuthResponse_);
+  }, (authResponse.expires_in - swby.gapi.RELOAD_BEFORE_EXPIRES_SECS_) * 1000);
 };
 
 /**
@@ -274,7 +308,7 @@ Load the Firebase library.
 swby.gapi.Init_.prototype.loadFirebase_ = function() {
   if (!this.config_.firebase) return swby.promise.fulfilled();
   return swby.gapi.loadJavaScript_(
-      swby.gapi.FIREBASE_URL_,
+      swby.gapi.FIREBASE_URL_.replace('<version>', this.config_.firebase.version),
       swby.gapi.TIMEOUT_MS_,
       'Timeout while loading Firebase');
 };
@@ -293,7 +327,6 @@ swby.gapi.Init_.prototype.initFirebase_ = function() {
     messagingSenderId: this.config_.firebase.messagingSenderId
   });
   if (this.requiresAuth_) {
-    // TODO: Better method to get the token?
     var id_token =
       gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse().id_token;
     var credential = firebase.auth.GoogleAuthProvider.credential(id_token);
@@ -324,7 +357,9 @@ swby.gapi.Init_.prototype.run = function() {
     return swby.promise.all([
       zhis.requiresAuth_ ? zhis.authenticate_() : swby.promise.fulfilled(),
       zhis.loadApis_(),
-      zhis.loadFirebase_()  // TODO: Could be in parallel with above.
+      // Loading Firebase could be done in parallel with the gapi.client.init,
+      // but it does not seem to be on the critical path. (TODO)
+      zhis.loadFirebase_()
     ]);
   }).then(function() {
     // Initialize Firebase.
