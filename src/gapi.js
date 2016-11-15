@@ -114,6 +114,32 @@ swby.gapi.callFunctionWithCallback_ = function(fn, opt_timeoutMs, opt_error) {
   });
 };
 
+/**
+@param {string} src
+@param {number=} opt_timeoutMs
+@param {ERROR=} opt_error
+@return {swby.promise.Promise<Void, ERROR>}
+@template ERROR
+@private
+*/
+swby.gapi.loadJavaScript_ = function(src, opt_timeoutMs, opt_error) {
+  var script = document.createElement('script');
+  script.type = 'application/javascript';
+  script.src = src;
+  return new swby.promise.Promise(function(resolve, reject) {
+    var timeout = new swby.gapi.Timeout_(opt_timeoutMs, function(error) {
+      document.body.removeChild(script);
+      reject(error);
+    }, opt_error);
+    document.body.appendChild(script);
+    script.addEventListener('load', function() {
+      if (timeout.hasExpired()) return;
+      document.body.removeChild(script);
+      resolve();
+    });    
+  });
+};
+
 // ****************************************************************************
 // Class swby.gapi.Init_
 
@@ -193,10 +219,7 @@ Load the main library (api.js).
 swby.gapi.Init_.prototype.loadApiJs_ = function() {
   return swby.gapi.callFunctionWithToplevelCallback_(
       function(callbackName) {
-        var script = document.createElement('script');
-        script.type = 'application/javascript';
-        script.src = swby.gapi.GAPI_JS_URL_ + '?onload=' + callbackName;
-        document.body.appendChild(script);
+        swby.gapi.loadJavaScript_(swby.gapi.GAPI_JS_URL_ + '?onload=' + callbackName)
       },
       swby.gapi.TIMEOUT_MS_,
       'Timeout while loading api.js');
@@ -217,7 +240,7 @@ swby.gapi.Init_.prototype.loadClient_ = function() {
 Authenticate.
 @return {swby.promise.Promise}
 */
-swby.gapi.Init_.prototype.auth_ = function() {
+swby.gapi.Init_.prototype.authenticate_ = function() {
   if (gapi.auth2.getAuthInstance().isSignedIn.get()) {
     return swby.promise.fulfilled();
   } else {
@@ -248,14 +271,10 @@ swby.gapi.Init_.prototype.loadApis_ = function() {
 Load the Firebase library.
 @return {swby.promise.Promise}
 */
-// TODO(vtst): Share code with load api.js?
 swby.gapi.Init_.prototype.loadFirebase_ = function() {
   if (!this.config_.firebase) return swby.promise.fulfilled();
-  return swby.gapi.callFunctionWithToplevelCallback_(
-      function(callbackName) {
-        document.write('<script type="application/javascript" src="' + swby.gapi.FIREBASE_URL_ + '"></script>');                  
-        document.write('<script type="application/javascript">' + callbackName + '();</script>');                  
-      },
+  return swby.gapi.loadJavaScript_(
+      swby.gapi.FIREBASE_URL_,
       swby.gapi.TIMEOUT_MS_,
       'Timeout while loading Firebase');
 };
@@ -275,9 +294,9 @@ swby.gapi.Init_.prototype.initFirebase_ = function() {
   });
   if (this.requiresAuth_) {
     // TODO: Better method to get the token?
-    var credential = firebase.auth.GoogleAuthProvider.credential(
-        null, gapi.auth.getToken().access_token);
-    // TODO: Check no .catch is needed.
+    var id_token =
+      gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse().id_token;
+    var credential = firebase.auth.GoogleAuthProvider.credential(id_token);
     return firebase.auth().signInWithCredential(credential);
   } else {
     return swby.promise.fulfilled();
@@ -303,7 +322,7 @@ swby.gapi.Init_.prototype.run = function() {
   }).then(function() {
     // In parallel: authenticates and load APIs.
     return swby.promise.all([
-      zhis.requiresAuth_ ? zhis.auth_() : swby.promise.fulfilled(),
+      zhis.requiresAuth_ ? zhis.authenticate_() : swby.promise.fulfilled(),
       zhis.loadApis_(),
       zhis.loadFirebase_()  // TODO: Could be in parallel with above.
     ]);
