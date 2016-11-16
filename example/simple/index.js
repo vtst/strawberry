@@ -20,5 +20,5 @@ swby.gapi.init(CONFIG).then(function(resp) {
     document.body.classList.remove('swby-loading');
   });
 }, function(err) {
-  console.log('ERROR', err);
+  console.log('ERROR', err, err.stack);
 });
