@@ -1,6 +1,13 @@
 var swby = swby || {};
 swby.promise = {};
 
+/**
+Set to true to throw errors which are not handled at toplevel. This ease
+debugging by showing a stack trace in the JavaScript console.
+@const {boolean}
+ */
+swby.promise.THROW_UNHANDLED_ERROR = true;
+
 // *************************************************************************
 // Utility functions
 
@@ -112,6 +119,15 @@ swby.promise.Promise_.prototype.reject_ = function(reason) {
   /** @private {REASON} */
   this.reason_ = reason;
   this.resolveAndClearChildren_();
+  if (swby.promise.THROW_UNHANDLED_ERROR) {
+    this.hasUnhandledRejected_ = true;
+    swby.promise.async_(function() {
+      if (this.hasUnhandledRejected_) {
+        this.hasUnhandledRejected_ = false;
+        throw this.reason_;
+      }
+    }, this);
+  }
 };
 
 /**
@@ -189,6 +205,7 @@ swby.promise.Promise_.prototype.resolveChild_ = function(child) {
     }
   } else {
     swby.lang.assert(this.state_ == swby.promise.State_.REJECTED);
+    this.hasUnhandledRejected_ = false;
     if (child.onRejected_) {
       try {
         var x = child.onRejected_.call(child.context_, this.reason_);
